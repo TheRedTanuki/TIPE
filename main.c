@@ -6,126 +6,40 @@
 #include <math.h>
 //gcc main.c -o main -lraylib -lm -lpthread -ldl -lrt -lX11
 
-typedef struct
-{
-	double** array;
-	int m;
-	int p;
-} mat;
-
-void printMat(mat* mat) {
-	for(int i = 0; i<mat->m; i++) {
-		for(int j = 0; j<mat->p; j++) {
-			printf("%f ", mat->array[i][j]);
-		}
-		printf("\n");
-	}
-}
-
-mat mult(mat* m1, mat* m2) {
-	assert(m1->p==m2->m);
-	mat matrix;
-	matrix.m = m1->m;
-	matrix.p = m2->p;
-	matrix.array = malloc(sizeof(double*) * m1->m);
-	for(int i = 0; i<m1->m; i++) {
-		matrix.array[i] = malloc(sizeof(double) * m2->p);
-		for(int j = 0; j<m2->p; j++) {
-			matrix.array[i][j] = 0;
-			for(int k = 0; k<m1->p; k++) {
-				matrix.array[i][j] += m1->array[i][k] * m2->array[k][j];
-			}
-		}
-	}
-	return matrix;
-}
-
-mat array_to_mat(double** array, int m, int p) {
-	mat matrix = {.array = array, .m = m, .p = p};
-	return matrix;
-}
-
-mat pitch3d_mat(double pitch) {
-	double** array = malloc(3*sizeof(double*));
-	for(int i = 0; i<3; i++) {
-		array[i] = malloc(3*sizeof(double));
-	}
-	array[0][0] = 1.;
-	array[0][1] = 0.;
-	array[0][2] = 0.;
-
-	array[1][0] = 0.;
-	array[1][1] = cos(pitch);
-	array[1][2] = -sin(pitch);
-
-	array[2][0] = 0.;
-	array[2][1] = sin(pitch);
-	array[2][2] = cos(pitch);
-	mat matrix = {
-		.array = array,
-		.m = 3,
-		.p = 3
+Quaternion mult(Quaternion q1, Quaternion q2) {
+	Quaternion res = {
+		q1.x * q2.x - q1.y * q2.y - q1.z * q2.z - q1.w * q2.w,
+		q1.x * q2.y + q1.y * q2.x + q1.z * q2.w - q1.w * q2.z,
+		q1.x * q2.z - q1.y * q2.w + q1.z * q2.x + q1.w * q2.y,
+		q1.x * q2.w + q1.y * q2.z - q1.z * q2.y + q1.w * q2.x
 	};
-	return matrix;
+	return res;
 }
 
-mat yaw3d_mat(double yaw) {
-	double** array = malloc(3*sizeof(double*));
-	for(int i = 0; i<3; i++) {
-		array[i] = malloc(3*sizeof(double));
-	}
-	array[0][0] = cos(yaw);
-	array[0][1] = 0.;
-	array[0][2] = sin(yaw);
-
-	array[1][0] = 0.;
-	array[1][1] = 1.;
-	array[1][2] = 0.;
-
-	array[2][0] = -sin(yaw);
-	array[2][1] = 0.;
-	array[2][2] = cos(yaw);
-
-	mat matrix = {
-		.array = array,
-		.m = 3,
-		.p = 3
-	};
-	return matrix;
+Quaternion quatAdd(Quaternion v1, Quaternion v2) {
+	return (Quaternion) {v1.x + v2.x, v1.y + v2.y, v1.z + v2.z, v1.w + v2.w};
 }
 
-mat roll3d_mat(double roll) {
-	double** array = malloc(3*sizeof(double*));
-	for(int i = 0; i<3; i++) {
-		array[i] = malloc(3*sizeof(double));
-	}
-	array[0][0] = cos(roll);
-	array[0][1] = -sin(roll);
-	array[0][2] = 0.;
-
-	array[1][0] = sin(roll);
-	array[1][1] = cos(roll);
-	array[1][2] = 0.;
-
-	array[2][0] = 0.;
-	array[2][1] = 0.;
-	array[2][2] = 1.;
-
-	mat matrix = {
-		.array = array,
-		.m = 3,
-		.p = 3
-	};
-	return matrix;
+Vector3 vect3Add(Vector3 v1, Vector3 v2) {
+	return (Vector3) {v1.x + v2.x, v1.y + v2.y, v1.z + v2.z};
 }
 
-mat rotation3d_mat(double pitch, double yaw, double roll) {
-	mat pitch_mat = pitch3d_mat(pitch);
-	mat yaw_mat = yaw3d_mat(yaw);
-	mat roll_mat = roll3d_mat(roll);
-	mat yaw_roll_mat = mult(&yaw_mat, &roll_mat);
+Vector3 scalarMultVect3(Vector3 v, double a) {
+	return (Vector3) {v.x*a, v.y*a, v.z*a};
+}
 
-	return mult(&pitch_mat, &yaw_roll_mat);
+Vector3 quatToVect3(Quaternion q) {
+	return (Vector3){q.y, q.z, q.w};
+}
+
+Quaternion rotationQuat(Quaternion axis, double angle) {
+	double c = cos(angle/2);
+	double s = sin(angle/2);
+	return (Quaternion){c, s*axis.y, s*axis.z, s*axis.w};
+}
+
+Quaternion inverse(Quaternion q) {
+	return (Quaternion){q.x, -q.y, -q.z, -q.w};
 }
 
 Vector3 cross(Vector3 v1, Vector3 v2) {
@@ -150,14 +64,6 @@ bool*** create3DBuffer(int n) {
 		}
 	}
 	return voxelBuffer;
-}
-
-Vector3 scalarMult(Vector3 v, double a) {
-	return (Vector3) {v.x*a, v.y*a, v.z*a};
-}
-
-Vector3 vectAdd(Vector3 v1, Vector3 v2) {
-	return (Vector3){v1.x + v2.x, v1.y + v2.y, v1.z + v2.z};
 }
 
 int main ()
@@ -199,13 +105,9 @@ int main ()
 	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
 
 	Vector3 pos = {0., 0., -2.};
-	double** direction_array = malloc(3*sizeof(double));
-	for(int i = 0; i<3; i++) {
-		direction_array[i] = malloc(sizeof(double));
-		direction_array[i][0] = 1.;
-	}
-	mat direction_default = {.array = direction_array, .m = 3, .p = 1};
-	mat direction_mat;
+	Quaternion forward = {0., 1., 0., 0.};
+	Quaternion right = {0., 0., 1., 0.};
+	Quaternion up = {0., 0., 0., 1.};
 	DisableCursor();
 
 	double pitch = 0.0;
@@ -217,27 +119,28 @@ int main ()
 		
 		Vector2 delta = GetMouseDelta();
 		
-		pitch += (double)delta.y*0.002;
-		if(pitch > 1.5) pitch = 1.5;
-		if(pitch < -1.5) pitch = -1.5;
-		yaw -= (double)delta.x*0.002;
-		
-		mat rotation_mat = rotation3d_mat(pitch, yaw, roll);
-		direction_mat = mult(&rotation_mat, &direction_default);
+		pitch = (double)delta.y*0.002;
+		yaw = (double)delta.x*0.002;
+		roll = 0.02*(IsKeyDown(KEY_Q)?1:0 + IsKeyDown(KEY_E)?-1:0);
 
-		Vector3 forward = normalize((Vector3){direction_mat.array[0][0], direction_mat.array[1][0], direction_mat.array[2][0]});
-		Vector3 right = normalize(cross(forward, (Vector3){0.0, 1.0, 0.0}));
-		Vector3 up = cross(right, forward);
+		Quaternion rQuat = mult(mult(rotationQuat(right, pitch), rotationQuat(up, yaw)), rotationQuat(forward, roll));
+		Quaternion rQuatInv = inverse(rQuat);
+		forward = mult(rQuat, mult(forward, rQuatInv));
+		right = mult(rQuat, mult(right, rQuatInv));
+		up = mult(rQuat, mult(up, rQuatInv));
+		Vector3 vectForward = quatToVect3(forward);
+		Vector3 vectRight = quatToVect3(right);
+		Vector3 vectUp = quatToVect3(up);;
 
-		if(IsKeyDown(KEY_W)) pos = vectAdd(scalarMult(forward, 0.5), pos);
-		if(IsKeyDown(KEY_S)) pos = vectAdd(scalarMult(forward, -0.5), pos);
-		if(IsKeyDown(KEY_A)) pos = vectAdd(scalarMult(right, -0.5), pos);
-		if(IsKeyDown(KEY_D)) pos = vectAdd(scalarMult(right, 0.5), pos);
+		if(IsKeyDown(KEY_W)) pos = vect3Add(scalarMultVect3(vectForward, 0.5), pos);
+		if(IsKeyDown(KEY_S)) pos = vect3Add(scalarMultVect3(vectForward, -0.5), pos);
+		if(IsKeyDown(KEY_A)) pos = vect3Add(scalarMultVect3(vectRight, -0.5), pos);
+		if(IsKeyDown(KEY_D)) pos = vect3Add(scalarMultVect3(vectRight, 0.5), pos);
 		
 		SetShaderValue(shader, ratioLoc, &ratio, SHADER_UNIFORM_FLOAT);
-		SetShaderValue(shader, cameraForwardLoc, &forward, SHADER_UNIFORM_VEC3);
-		SetShaderValue(shader, cameraRightLoc, &right, SHADER_UNIFORM_VEC3);
-		SetShaderValue(shader, cameraUpLoc, &up, SHADER_UNIFORM_VEC3);
+		SetShaderValue(shader, cameraForwardLoc, &vectForward, SHADER_UNIFORM_VEC3);
+		SetShaderValue(shader, cameraRightLoc, &vectRight, SHADER_UNIFORM_VEC3);
+		SetShaderValue(shader, cameraUpLoc, &vectUp, SHADER_UNIFORM_VEC3);
 		SetShaderValue(shader, positionLoc, &pos, SHADER_UNIFORM_VEC3);		
 
 		BeginTextureMode(target);
