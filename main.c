@@ -129,7 +129,7 @@ int main ()
 	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
 	SetShaderValue(shader, fovLoc, &fov, SHADER_UNIFORM_FLOAT);
 
-	Vector3 pos = {0., 32., 0.};
+	Vector3 pos = {-1., -1., -1.};
 	Quaternion forward = {0., 1., 0., 0.};
 	Quaternion right = {0., 0., 1., 0.};
 	Quaternion up = {0., 0., 0., 1.};
@@ -182,7 +182,7 @@ int main ()
 			EndShaderMode();
 		
 		EndDrawing();
-		printf("%d\n", GetFPS());
+		printf("%d | %lf x : %lf y : %lf z\n", GetFPS(), pos.x, pos.y, pos.z);
 	}
 
 	UnloadShader(shader);

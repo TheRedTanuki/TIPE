@@ -7,7 +7,7 @@ uniform float ratio;
 uniform vec3 cameraForward = vec3 (1., 0., 0.);
 uniform vec3 cameraRight = vec3 (0., 1., 0.);
 uniform vec3 cameraUp = vec3 (0., 0., 1.);
-uniform vec3 position = vec3 (0., 0., -2.0);
+uniform vec3 position = vec3 (0., 0., 0.);
 uniform int n;
 uniform float fov = 1.;
 
@@ -15,30 +15,25 @@ layout(std430, binding = 0) buffer MyBuffer {
     float data[];
 };
 
-bool outsideBox(vec3 currentVoxel) {
-    return any(lessThan(currentVoxel, vec3 (0.))) || any(greaterThan(currentVoxel, vec3 (float (n-1))));
+bool inBoundaries(vec3 pos) {
+    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThanEqual(pos, vec3 (float (n-1))));
 }
 
-bool getVoxel(vec3 currentVoxel) {
-    return  
-    // all(lessThan(currentVoxel, vec3 (30.))) && all(greaterThan(currentVoxel, vec3 (1.))); 
-    (sqrt((currentVoxel.x-16.)*(currentVoxel.x-16.) + (currentVoxel.y-16.)*(currentVoxel.y-16.) + (currentVoxel.z-16.)*(currentVoxel.z-16.)) < 10) || all(equal(currentVoxel, vec3 (31.)));
+bool getVoxel(vec3 voxelPos) {
+    return (voxelPos.x-16.)*(voxelPos.x-16.) + (voxelPos.y-16.)*(voxelPos.y-16.) + (voxelPos.z-16.)*(voxelPos.z-16.) < 100;
 }
 
-void main()
-{
+void main() {
     vec2 uv = fragTexCoord;
     // data[0] += 2; syntax example
     uv *= 2.0;
     uv -= 1.;
     uv.x *= ratio;
 
+
     vec3 ray = normalize(cameraForward + uv.x*cameraRight*fov + uv.y*cameraUp*fov);
     vec3 pos = position;
-    vec3 invRay;
-    invRay.x = ray.x!=0 ? 1./ray.x : 0.;
-    invRay.y = ray.y!=0 ? 1./ray.y : 0.;
-    invRay.z = ray.z!=0 ? 1./ray.z : 0.;
+    vec3 invRay = 1./ray;
 
     vec3 t0 = (vec3(0.)-pos) * invRay;
     vec3 t1 = (vec3(float(n)) - pos) * invRay;
@@ -54,43 +49,43 @@ void main()
         return;
     }
 
-    if(any(lessThan(pos, vec3 (0.))) || any(greaterThan(pos, vec3 (float (n))))) {
+    if(any(lessThan(pos, vec3 (0.))) || any(greaterThanEqual(pos, vec3 (float (n))))) {
         pos += ray*tmin;
     }
 
     vec3 stepVect = sign(ray);
-    vec3 absInvRay = abs(invRay);
-    vec3 currentVoxel = floor(pos+vec3(0.0001)*stepVect);
-    
-    vec3 nextVoxelBoundary = (currentVoxel+stepVect)*1.;
-    vec3 tMax = (nextVoxelBoundary - pos)*invRay;
-
-    vec3 tDelta = 1.*stepVect*invRay;
+    vec3 currentVoxel = floor(pos+ray*1e-4);
+    vec3 nextBoundary = currentVoxel+max(stepVect, vec3(0.0));
+    vec3 t = (nextBoundary-pos)*invRay;
+    vec3 tDelta = abs(invRay);
 
     while(true) {
-        if (outsideBox(currentVoxel)) {
+        if(!inBoundaries(currentVoxel)) {
             finalColor = vec4(0., 0., 0., 1.);
             return;
         }
-        if (getVoxel(currentVoxel)) {
-            finalColor = vec4(currentVoxel / float(n), 1.);
+        if(getVoxel(currentVoxel)) {
+            finalColor = vec4(currentVoxel/float(n), 1.);
             return;
         }
-        if (tMax.x < tMax.y) {
-            if (tMax.x < tMax.z) {
+        if(t.x < t.y) {
+            if(t.x < t.z) {
                 currentVoxel.x += stepVect.x;
-                tMax.x += tDelta.x;
-            } else {
-                currentVoxel.z += stepVect.z;
-                tMax.z += tDelta.z;
+                t.x += tDelta.x;
             }
-        } else {
-            if (tMax.y < tMax.z) {
-                currentVoxel.y += stepVect.y;
-                tMax.y += tDelta.y;
-            } else {
+            else {
                 currentVoxel.z += stepVect.z;
-                tMax.z += tDelta.z;
+                t.z += tDelta.z;
+            }
+        }
+        else {
+            if(t.y < t.z) {
+                currentVoxel.y += stepVect.y;
+                t.y += tDelta.y;
+            }
+            else {
+                currentVoxel.z += stepVect.z;
+                t.z += tDelta.z;
             }
         }
     }
