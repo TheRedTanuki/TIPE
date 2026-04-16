@@ -12,7 +12,7 @@ uniform int n;
 uniform float fov = 1.;
 
 layout(std430, binding = 0) buffer MyBuffer {
-    float data[];
+    uint data[];
 };
 
 bool inBoundaries(vec3 pos) {
@@ -20,12 +20,13 @@ bool inBoundaries(vec3 pos) {
 }
 
 bool getVoxel(vec3 voxelPos) {
-    return (voxelPos.x-16.)*(voxelPos.x-16.) + (voxelPos.y-16.)*(voxelPos.y-16.) + (voxelPos.z-16.)*(voxelPos.z-16.) < 100;
+    ivec3 co = ivec3(voxelPos);
+    int index = co.x+n*co.y+n*n*co.z;
+    return ((data[index/4] >> (index%4)*8) & uint(255))!=0;
 }
 
 void main() {
     vec2 uv = fragTexCoord;
-    // data[0] += 2; syntax example
     uv *= 2.0;
     uv -= 1.;
     uv.x *= ratio;
@@ -59,7 +60,7 @@ void main() {
     vec3 t = (nextBoundary-pos)*invRay;
     vec3 tDelta = abs(invRay);
 
-    while(true) {
+    for(int i = 0; i<256; i++) {
         if(!inBoundaries(currentVoxel)) {
             finalColor = vec4(0., 0., 0., 1.);
             return;

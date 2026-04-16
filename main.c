@@ -119,11 +119,20 @@ int main ()
 	int nLoc = GetShaderLocation(shader, "n");
 	int fovLoc = GetShaderLocation(shader, "fov");
 
-	int n = 32;
 	float fov = 1.2;
-	// int size = (n*n*n-1)/8+1;
-	uint8_t* voxelArray = calloc(n, sizeof(uint8_t));
-	int ssbo = rlLoadShaderBuffer(n, voxelArray, RL_STATIC_READ);
+
+	int n = 31;
+	uint32_t* voxelArray = calloc((n*n*n+3)/4, sizeof(uint32_t));
+	for(int k = 0; k<n; k++) {
+		for(int j = 0; j<n; j++) {
+			for(int i = 0; i<n; i++) {
+				int index = i+n*j+n*n*k;
+				voxelArray[index/4] |=  (i-n/2)*(i-n/2) + (j-n/2)*(j-n/2) + (k-n/2)*(k-n/2)<(n/2)*(n/2) ? 0xFF<<((index%4)*8) : 0;
+			}
+		}
+	}
+	
+	int ssbo = rlLoadShaderBuffer((n*n*n-1)/4*sizeof(uint32_t), voxelArray, RL_STATIC_READ);
 	rlBindShaderBuffer(ssbo, 0);
 
 	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
@@ -187,5 +196,6 @@ int main ()
 
 	UnloadShader(shader);
 	CloseWindow();
+	free(voxelArray);
 	return 0;
 }
