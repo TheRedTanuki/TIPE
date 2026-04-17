@@ -117,17 +117,21 @@ int main ()
 	int cameraUpLoc = GetShaderLocation(shader, "cameraUp");
 	int positionLoc = GetShaderLocation(shader, "position");
 	int nLoc = GetShaderLocation(shader, "n");
+	int startPointLoc = GetShaderLocation(shader, "startPoint");
+	int voxelSizeLoc = GetShaderLocation(shader, "voxelSize");
 	int fovLoc = GetShaderLocation(shader, "fov");
 
 	float fov = 1.2;
+	Vector3 startPoint = (Vector3){0., 0., 0.};
+	float voxelSize = 1.;
 
-	int n = 31;
+	int n = 32;
 	uint32_t* voxelArray = calloc((n*n*n+3)/4, sizeof(uint32_t));
 	for(int k = 0; k<n; k++) {
 		for(int j = 0; j<n; j++) {
 			for(int i = 0; i<n; i++) {
 				int index = i+n*j+n*n*k;
-				voxelArray[index/4] |=  (i-n/2)*(i-n/2) + (j-n/2)*(j-n/2) + (k-n/2)*(k-n/2)<(n/2)*(n/2) ? 0xFF<<((index%4)*8) : 0;
+				voxelArray[index/4] |=  (i-n/2)*(i-n/2) + (j-n/2)*(j-n/2) + (k-n/2)*(k-n/2)<(n/2)*(n/2) || (i==n-2 && j==n-2 && k==n-2) ? 0xFF<<((index%4)*8) : 0;
 			}
 		}
 	}
@@ -137,6 +141,8 @@ int main ()
 
 	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
 	SetShaderValue(shader, fovLoc, &fov, SHADER_UNIFORM_FLOAT);
+	SetShaderValue(shader, startPointLoc, &startPoint, SHADER_UNIFORM_VEC3);
+	SetShaderValue(shader, voxelSizeLoc, &voxelSize, SHADER_UNIFORM_FLOAT);
 
 	Vector3 pos = {-1., -1., -1.};
 	Quaternion forward = {0., 1., 0., 0.};

@@ -10,13 +10,15 @@ uniform vec3 cameraUp = vec3 (0., 0., 1.);
 uniform vec3 position = vec3 (0., 0., 0.);
 uniform int n;
 uniform float fov = 1.;
+uniform float voxelSize = 1.;
+uniform vec3 startPoint = vec3 (0., 0., 0.);
 
 layout(std430, binding = 0) buffer MyBuffer {
     uint data[];
 };
 
 bool inBoundaries(vec3 pos) {
-    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThanEqual(pos, vec3 (float (n-1))));
+    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(n-1))));
 }
 
 bool getVoxel(vec3 voxelPos) {
@@ -26,6 +28,7 @@ bool getVoxel(vec3 voxelPos) {
 }
 
 void main() {
+    vec3 endPoint = startPoint+vec3((n-1)*voxelSize);
     vec2 uv = fragTexCoord;
     uv *= 2.0;
     uv -= 1.;
@@ -36,8 +39,8 @@ void main() {
     vec3 pos = position;
     vec3 invRay = 1./ray;
 
-    vec3 t0 = (vec3(0.)-pos) * invRay;
-    vec3 t1 = (vec3(float(n)) - pos) * invRay;
+    vec3 t0 = (startPoint-pos) * invRay;
+    vec3 t1 = (endPoint - pos) * invRay;
 
     vec3 tmin3 = min(t0, t1);
     vec3 tmax3 = max(t0, t1);
@@ -50,15 +53,15 @@ void main() {
         return;
     }
 
-    if(any(lessThan(pos, vec3 (0.))) || any(greaterThanEqual(pos, vec3 (float (n))))) {
+    if(any(lessThan(pos, startPoint)) || any(greaterThanEqual(pos, endPoint))) {
         pos += ray*tmin;
     }
 
     vec3 stepVect = sign(ray);
-    vec3 currentVoxel = floor(pos+ray*1e-4);
-    vec3 nextBoundary = currentVoxel+max(stepVect, vec3(0.0));
-    vec3 t = (nextBoundary-pos)*invRay;
-    vec3 tDelta = abs(invRay);
+    vec3 currentVoxel = floor((pos-startPoint)/voxelSize+ray*1e-4);
+    vec3 nextVoxelBoundary = (currentVoxel+max(stepVect, vec3(0.0)))*voxelSize;
+    vec3 t = (nextVoxelBoundary-(pos-startPoint))*invRay;
+    vec3 tDelta = abs(invRay)*voxelSize;
 
     for(int i = 0; i<256; i++) {
         if(!inBoundaries(currentVoxel)) {
@@ -66,7 +69,7 @@ void main() {
             return;
         }
         if(getVoxel(currentVoxel)) {
-            finalColor = vec4(currentVoxel/float(n), 1.);
+            finalColor = vec4(currentVoxel/(float(n-1)), 1.);
             return;
         }
         if(t.x < t.y) {
