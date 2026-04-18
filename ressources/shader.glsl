@@ -14,7 +14,7 @@ uniform float voxelSize = 1.;
 uniform vec3 startPoint = vec3 (0., 0., 0.);
 
 layout(std430, binding = 0) buffer MyBuffer {
-    uint data[];
+    int data[];
 };
 
 bool inBoundaries(vec3 pos) {
@@ -24,7 +24,50 @@ bool inBoundaries(vec3 pos) {
 bool getVoxel(vec3 voxelPos) {
     ivec3 co = ivec3(voxelPos);
     int index = co.x+n*co.y+n*n*co.z;
-    return ((data[index/4] >> (index%4)*8) & uint(255))!=0;
+    return ((data[index/4] >> (index%4)*8) & int(255))!=0;
+}
+
+int getValue(ivec3 coord) {
+    int index = coord.x+n*coord.y+n*n*coord.z;
+    return ((data[index/4] >> (index%4)*8) & int(255));
+}
+
+bool getVoxel2(vec3 voxelPos, float t, vec3 rayOrigin, vec3 rayDirection) {
+    vec3 rayLocalOrigin = rayOrigin+t*rayDirection-voxelPos;
+    ivec3 coord = ivec3(voxelPos);
+    //float divideFactor = sqrt(2)*voxelSize*0.0078125; //sqrt(2)*voxelSize/128 TODO : compute it only once
+    float s000 = float (getValue(coord)); //*divideFactor;
+    float s001 = float (getValue(coord + ivec3(1, 0, 0))); //*divideFactor;
+    float s010 = float (getValue(coord + ivec3(0, 1, 0))); //*divideFactor;
+    float s011 = float (getValue(coord + ivec3(1, 1, 0))); //*divideFactor;
+    float s100 = float (getValue(coord + ivec3(0, 0, 1))); //*divideFactor;
+    float s101 = float (getValue(coord + ivec3(1, 0, 1))); //*divideFactor;
+    float s110 = float (getValue(coord + ivec3(0, 1, 1))); //*divideFactor;
+    float s111 = float (getValue(coord + ivec3(1, 1, 1))); //*divideFactor;
+
+    float a = s101 - s001;
+    float k0 = s000;
+    float k1 = s100 - s000;
+    float k2 = s010 - s000;
+    float k3 = s110 - s010 - k1;
+    float k4 = k0 - s001;
+    float k5 = k1 - a;
+    float k6 = k2 - (s011 - s001);
+    float k7 = k3 - (s111 - s011 - a);
+
+    float m0 = rayLocalOrigin.x*rayLocalOrigin.y;
+    float m1 = rayDirection.x*rayDirection.y;
+    float m2 = rayLocalOrigin.x*rayDirection.y + rayLocalOrigin.y*rayDirection.x;
+    float m3 = k5*rayLocalOrigin.z-k1;
+    float m4 = k6*rayLocalOrigin.z-k2;
+    float m5 = k7*rayLocalOrigin.z-k3;
+
+    float c0 = (k4*rayLocalOrigin.z-k0) + rayLocalOrigin.x*m1 + rayLocalOrigin.y*m4 + m0*m5;
+    float c1 = rayDirection.x*m3 + rayDirection.y*m4 + m2*m5 + rayDirection.z*(k4 + k5*rayLocalOrigin.x + k6*rayDirection.y + k7*m0);
+    float c2 = m1*m2 + rayDirection.z*(k5*rayDirection.x + k6*rayDirection.y + k7*m2);
+    float c3 = k7*m1*rayDirection.z;
+
+    return true;
 }
 
 void main() {
@@ -60,7 +103,8 @@ void main() {
     vec3 stepVect = sign(ray);
     vec3 currentVoxel = floor((pos-startPoint)/voxelSize+ray*1e-4);
     vec3 nextVoxelBoundary = (currentVoxel+max(stepVect, vec3(0.0)))*voxelSize;
-    vec3 t = (nextVoxelBoundary-(pos-startPoint))*invRay;
+    vec3 tMax = (nextVoxelBoundary-(pos-startPoint))*invRay;
+    float t = 0.;
     vec3 tDelta = abs(invRay)*voxelSize;
 
     for(int i = 0; i<256; i++) {
@@ -72,24 +116,28 @@ void main() {
             finalColor = vec4(currentVoxel/(float(n-1)), 1.);
             return;
         }
-        if(t.x < t.y) {
-            if(t.x < t.z) {
+        if(tMax.x < tMax.y) {
+            if(tMax.x < tMax.z) {
                 currentVoxel.x += stepVect.x;
-                t.x += tDelta.x;
+                tMax.x += tDelta.x;
+                t = tMax.x;
             }
             else {
                 currentVoxel.z += stepVect.z;
-                t.z += tDelta.z;
+                tMax.z += tDelta.z;
+                t = tMax.z;
             }
         }
         else {
-            if(t.y < t.z) {
+            if(tMax.y < tMax.z) {
                 currentVoxel.y += stepVect.y;
-                t.y += tDelta.y;
+                tMax.y += tDelta.y;
+                t = tMax.y;
             }
             else {
                 currentVoxel.z += stepVect.z;
-                t.z += tDelta.z;
+                tMax.z += tDelta.z;
+                t = tMax.z;
             }
         }
     }
