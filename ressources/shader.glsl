@@ -62,9 +62,9 @@ bool getVoxel2(vec3 voxelPos, float t, vec3 rayOrigin, vec3 rayDirection) {
     float m4 = k6*rayLocalOrigin.z-k2;
     float m5 = k7*rayLocalOrigin.z-k3;
 
-    float c0 = (k4*rayLocalOrigin.z-k0) + rayLocalOrigin.x*m1 + rayLocalOrigin.y*m4 + m0*m5;
-    float c1 = rayDirection.x*m3 + rayDirection.y*m4 + m2*m5 + rayDirection.z*(k4 + k5*rayLocalOrigin.x + k6*rayDirection.y + k7*m0);
-    float c2 = m1*m2 + rayDirection.z*(k5*rayDirection.x + k6*rayDirection.y + k7*m2);
+    float c0 = (k4*rayLocalOrigin.z-k0) + rayLocalOrigin.x*m3 + rayLocalOrigin.y*m4 + m0*m5;
+    float c1 = rayDirection.x*m3 + rayDirection.y*m4 + m2*m5 + rayDirection.z*(k4 + k5*rayLocalOrigin.x + k6*rayLocalOrigin.y + k7*m0);
+    float c2 = m1*m5 + rayDirection.z*(k5*rayDirection.x + k6*rayDirection.y + k7*m2);
     float c3 = k7*m1*rayDirection.z;
 
     return true;
