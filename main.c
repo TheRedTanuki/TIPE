@@ -76,35 +76,6 @@ Vector3 cross(Vector3 v1, Vector3 v2) {
 	return res;
 }
 
-bool*** create3DBuffer(int n) {
-	bool*** voxelBuffer = malloc(sizeof(bool**)*n);
-	for(int i = 0; i<n; i++) {
-		voxelBuffer[i] = malloc(n*sizeof(bool*)*n);
-		for(int j = 0; j<n; j++) {
-			voxelBuffer[i][j] = calloc(n, sizeof(bool));
-		}
-	}
-	return voxelBuffer;
-}
-
-/*Image convertBoolBuffToImage(bool* buffer, int n) {
-	int size = (n*n*n-1)/32+1;
-	Image image = GenImageColor(size, 1, BLACK);
-	uint32_t bool_temp;
-	Color color_temp;
-	for(int i = 0; i<size; i++) {
-		bool_temp = 0;
-
-		int maxbits = i<(size-1) ? 32 : (32-(size*32-n*n*n));
-		for(int j = 0; j<maxbits; j++) {
-			bool_temp |= (buffer[j+i*32]? 1u : 0u)<<j;
-		}
-		memcpy(&color_temp, &bool_temp, sizeof(uint32_t));
-		ImageDrawPixel(&image, i, 0, color_temp);
-	}
-	return image;
-}*/
-
 int main ()
 {
 	SetConfigFlags(FLAG_WINDOW_HIGHDPI);
@@ -131,8 +102,8 @@ int main ()
 	Vector3 startPoint = (Vector3){0., 0., 0.};
 	float voxelSize = 1.;
 
-	int n = 32;
-	uint32_t* voxelArray = calloc((n*n*n+3)/4, sizeof(uint32_t));
+	int n = 16;
+	uint32_t* voxelArray = calloc((n*n*n-1)/4+1, sizeof(uint32_t));
 	for(int k = 0; k<n; k++) {
 		for(int j = 0; j<n; j++) {
 			for(int i = 0; i<n; i++) {
@@ -150,7 +121,7 @@ int main ()
 		}
 	}
 	
-	int ssbo = rlLoadShaderBuffer((n*n*n-1)/4*sizeof(uint32_t), voxelArray, RL_STATIC_READ);
+	int ssbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), voxelArray, RL_STATIC_READ);
 	rlBindShaderBuffer(ssbo, 0);
 
 	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
