@@ -14,7 +14,7 @@ uniform float voxelSize = 1.;
 uniform vec3 startPoint = vec3 (0., 0., 0.);
 
 layout(std430, binding = 0) buffer MyBuffer {
-    int data[];
+    uint data[];
 };
 
 bool inBoundaries(vec3 pos) {
@@ -24,26 +24,30 @@ bool inBoundaries(vec3 pos) {
 bool getVoxel(vec3 voxelPos) {
     ivec3 co = ivec3(voxelPos);
     int index = co.x+n*co.y+n*n*co.z;
-    return ((data[index/4] >> (index%4)*8) & int(255))!=0;
+    return ((data[index/4] >> (index%4)*8) & uint(255))!=0;
 }
 
 int getValue(ivec3 coord) {
     int index = coord.x+n*coord.y+n*n*coord.z;
-    return ((data[index/4] >> (index%4)*8) & int(255));
+    return int((data[index/4] >> (index%4)*8) & uint(255))-127;
+}
+
+float poly3(vec4 c, float t) {
+    return c.w*t*t*t + c.z*t*t + c.y*t + c.x;
 }
 
 bool getVoxel2(vec3 voxelPos, float t, vec3 rayOrigin, vec3 rayDirection) {
-    vec3 rayLocalOrigin = rayOrigin+t*rayDirection-voxelPos;
+    vec3 rayLocalOrigin = rayOrigin+t*rayDirection-voxelPos; // false when rayDirection is negative TODO : correct it
     ivec3 coord = ivec3(voxelPos);
-    //float divideFactor = sqrt(2)*voxelSize*0.0078125; //sqrt(2)*voxelSize/128 TODO : compute it only once
-    float s000 = float (getValue(coord)); //*divideFactor;
-    float s001 = float (getValue(coord + ivec3(1, 0, 0))); //*divideFactor;
-    float s010 = float (getValue(coord + ivec3(0, 1, 0))); //*divideFactor;
-    float s011 = float (getValue(coord + ivec3(1, 1, 0))); //*divideFactor;
-    float s100 = float (getValue(coord + ivec3(0, 0, 1))); //*divideFactor;
-    float s101 = float (getValue(coord + ivec3(1, 0, 1))); //*divideFactor;
-    float s110 = float (getValue(coord + ivec3(0, 1, 1))); //*divideFactor;
-    float s111 = float (getValue(coord + ivec3(1, 1, 1))); //*divideFactor;
+    float divideFactor = sqrt(2)/128;
+    float s000 = float (getValue(coord))*divideFactor;
+    float s100 = float (getValue(coord + ivec3(1, 0, 0)))*divideFactor;
+    float s010 = float (getValue(coord + ivec3(0, 1, 0)))*divideFactor;
+    float s110 = float (getValue(coord + ivec3(1, 1, 0)))*divideFactor;
+    float s001 = float (getValue(coord + ivec3(0, 0, 1)))*divideFactor;
+    float s101 = float (getValue(coord + ivec3(1, 0, 1)))*divideFactor;
+    float s011 = float (getValue(coord + ivec3(0, 1, 1)))*divideFactor;
+    float s111 = float (getValue(coord + ivec3(1, 1, 1)))*divideFactor;
 
     float a = s101 - s001;
     float k0 = s000;
@@ -62,13 +66,42 @@ bool getVoxel2(vec3 voxelPos, float t, vec3 rayOrigin, vec3 rayDirection) {
     float m4 = k6*rayLocalOrigin.z-k2;
     float m5 = k7*rayLocalOrigin.z-k3;
 
+    // Intersection between the suface and the ray : f(t) = c3*t³ +  c2*t² + c1*t + c0, f(t) = 0 //
+
     float c0 = (k4*rayLocalOrigin.z-k0) + rayLocalOrigin.x*m3 + rayLocalOrigin.y*m4 + m0*m5;
     float c1 = rayDirection.x*m3 + rayDirection.y*m4 + m2*m5 + rayDirection.z*(k4 + k5*rayLocalOrigin.x + k6*rayLocalOrigin.y + k7*m0);
     float c2 = m1*m5 + rayDirection.z*(k5*rayDirection.x + k6*rayDirection.y + k7*m2);
     float c3 = k7*m1*rayDirection.z;
 
-    return true;
+    // Solving the equation //
+    // f'(t) = 3*c3*t² + 2*c2*t + c1
+    // find the locals extrema (if they exist) : f'(t) = 0
+    float delta = 4*c2*c2 - 4*3*c3*c1; // delta = b² - 4ac
+    vec4 c = vec4(c0, c1, c2, c3);
+    float absMax;
+    float absMin;
+    if(delta >= 0.) {
+        float t1 = clamp((-2*c2-sqrt(delta))/(2*3*c3), 0., 1.); // -b-sqrt(delta)/2a
+        float t2 = clamp((-2*c2+sqrt(delta))/(2*3*c3), 0., 1.); // -b+sqrt(delta)/2a
+        absMax = max(max(poly3(c, 0.), poly3(c, 1.)), max(poly3(c, t1), poly3(c, t2)));
+        absMin = min(min(poly3(c, 0.), poly3(c, 1.)), min(poly3(c, t1), poly3(c, t2)));
+    }
+    else {
+        absMax = max(poly3(c, 0.), poly3(c, 1.));
+        absMin = min(poly3(c, 0.), poly3(c, 1.));
+    }
+
+    return (absMin <= 0.0 && absMax >= 0.0);
 }
+
+// print all data (not working)
+/*void main() {
+    vec2 uv = fragTexCoord;
+    uv.x *= n*n;
+    uv.y *= n;
+    float val = (getValue(ivec3(int(uv.x)%n, int(uv.y), int(uv.x)/n))+127)/255;
+    finalColor = vec4(vec3(val), 1.);
+}*/
 
 void main() {
     vec3 endPoint = startPoint+vec3((n-1)*voxelSize);
@@ -76,7 +109,6 @@ void main() {
     uv *= 2.0;
     uv -= 1.;
     uv.x *= ratio;
-
 
     vec3 ray = normalize(cameraForward + uv.x*cameraRight*fov + uv.y*cameraUp*fov);
     vec3 pos = position;
@@ -112,7 +144,7 @@ void main() {
             finalColor = vec4(0., 0., 0., 1.);
             return;
         }
-        if(getVoxel(currentVoxel)) {
+        if (getVoxel2(currentVoxel, t, pos, ray)) {
             finalColor = vec4(currentVoxel/(float(n-1)), 1.);
             return;
         }

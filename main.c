@@ -9,6 +9,12 @@
 #include <rlgl.h>
 //gcc main.c -o main -lraylib -lm -lpthread -ldl -lrt -lX11
 
+int clamp(int x, int m, int M) {
+	if(x>M) return M;
+	if(x<m) return m;
+	return x;
+}
+
 // Quaternion functions
 
 Vector3 normalizeV3(Vector3 v) {
@@ -131,7 +137,15 @@ int main ()
 		for(int j = 0; j<n; j++) {
 			for(int i = 0; i<n; i++) {
 				int index = i+n*j+n*n*k;
-				voxelArray[index/4] |=  (i-n/2)*(i-n/2) + (j-n/2)*(j-n/2) + (k-n/2)*(k-n/2)<(n/2)*(n/2) || (i==n-2 && j==n-2 && k==n-2) ? 0xFF<<((index%4)*8) : 0;
+				double c = (n-1)/2.;
+				double sdf = (sqrt((double)((i-c)*(i-c) + (j-c)*(j-c) + (k-c)*(k-c))) - c)/sqrt(2)*127;
+				uint32_t val = (uint32_t)(clamp((int)sdf, -127, 127)+127);
+				uint32_t shift = (index % 4) * 8;
+				uint32_t mask  = 0xFFu << shift;
+
+				voxelArray[index/4] =
+					(voxelArray[index/4] & ~mask) |
+					(val << shift);
 			}
 		}
 	}
