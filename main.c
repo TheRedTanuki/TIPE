@@ -76,6 +76,15 @@ Vector3 cross(Vector3 v1, Vector3 v2) {
 	return res;
 }
 
+double lengthV2(Vector2 vec) {
+	return sqrt(vec.x*vec.x + vec.y*vec.y);
+}
+
+double sdf(Vector3 pos, Vector2 t) {
+  Vector2 q = (Vector2){lengthV2((Vector2){pos.x, pos.z})-t.x, pos.y};
+  return lengthV2(q)-t.y;
+}
+
 int main ()
 {
 	SetConfigFlags(FLAG_WINDOW_HIGHDPI);
@@ -100,7 +109,7 @@ int main ()
 
 	float fov = 1.2;
 	Vector3 startPoint = (Vector3){0., 0., 0.};
-	float voxelSize = 1.;
+	float voxelSize = 0.1;
 
 	int n = 16;
 	uint32_t* voxelArray = calloc((n*n*n-1)/4+1, sizeof(uint32_t));
@@ -109,8 +118,9 @@ int main ()
 			for(int i = 0; i<n; i++) {
 				int index = i+n*j+n*n*k;
 				double c = (n-1)/2.;
-				double sdf = (sqrt((double)((i-c)*(i-c) + (j-c)*(j-c) + (k-c)*(k-c))) - c)/sqrt(2)*127;
-				uint32_t val = (uint32_t)(clamp((int)sdf, -127, 127)+127);
+				Vector3 pos = (Vector3){(double)i-c, (double)j-c, (double)k-c};
+				double dist = sdf(pos, (Vector2){4.5, 3.})/(sqrt(2))*127;
+				uint32_t val = (uint32_t)(clamp((int)dist, -127, 127)+127);
 				uint32_t shift = (index % 4) * 8;
 				uint32_t mask  = 0xFFu << shift;
 
