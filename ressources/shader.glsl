@@ -12,6 +12,7 @@ uniform int n;
 uniform float fov = 1.;
 uniform float voxelSize = 1.;
 uniform vec3 startPoint = vec3 (0., 0., 0.);
+uniform int newtonNMax = 5; // precision of t determination (increase for more precision)
 
 layout(std430, binding = 0) buffer MyBuffer {
     uint data[];
@@ -36,29 +37,39 @@ float poly3(vec4 c, float t) {
     return c.w*t*t*t + c.z*t*t + c.y*t + c.x;
 }
 
-bool intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, float tSegment)
+float poly2(vec3 c, float t) {
+    return c.z*t*t + c.y*t +c.x;
+}
+
+bool signDiff(float x1, float x2) {
+    return x1*x2 <= 0.;
+}
+
+float intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, float tSegment)
 {
     vec3 voxelWorld = startPoint + voxel * voxelSize;
 
     vec3 localOrigin = (rayOrigin - voxelWorld) / voxelSize;
     vec3 localDir    = (rayDir * tSegment) / voxelSize;
 
-    float scale = sqrt(2)/127;
-    float s000 = float (getValue(voxelInt))*scale;
-    float s100 = float (getValue(voxelInt + ivec3(1, 0, 0)))*scale;
-    float s010 = float (getValue(voxelInt + ivec3(0, 1, 0)))*scale;
-    float s110 = float (getValue(voxelInt + ivec3(1, 1, 0)))*scale;
-    float s001 = float (getValue(voxelInt + ivec3(0, 0, 1)))*scale;
-    float s101 = float (getValue(voxelInt + ivec3(1, 0, 1)))*scale;
-    float s011 = float (getValue(voxelInt + ivec3(0, 1, 1)))*scale;
-    float s111 = float (getValue(voxelInt + ivec3(1, 1, 1)))*scale;
+    float scale = sqrt(2.0)/127.0;
 
-    float a = s101 - s001;
-    float k0 = s000;
+    // Trilinear interpolation coefficients
+    float s000 = float(getValue(voxelInt)) * scale;
+    float s100 = float(getValue(voxelInt + ivec3(1,0,0))) * scale;
+    float s010 = float(getValue(voxelInt + ivec3(0,1,0))) * scale;
+    float s110 = float(getValue(voxelInt + ivec3(1,1,0))) * scale;
+    float s001 = float(getValue(voxelInt + ivec3(0,0,1))) * scale;
+    float s101 = float(getValue(voxelInt + ivec3(1,0,1))) * scale;
+    float s011 = float(getValue(voxelInt + ivec3(0,1,1))) * scale;
+    float s111 = float(getValue(voxelInt + ivec3(1,1,1))) * scale;
+
+    // Computing coefficients
+    float a  = s101 - s001;
     float k1 = s100 - s000;
     float k2 = s010 - s000;
     float k3 = s110 - s010 - k1;
-    float k4 = k0 - s001;
+    float k4 = s000 - s001;
     float k5 = k1 - a;
     float k6 = k2 - (s011 - s001);
     float k7 = k3 - (s111 - s011 - a);
@@ -70,108 +81,105 @@ bool intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, flo
     float m4 = k6*localOrigin.z - k2;
     float m5 = k7*localOrigin.z - k3;
 
-    // Intersection between the suface and the ray : f(t) = c3*t³ +  c2*t² + c1*t + c0, f(t) = 0 //
-
-    float c0 = (k4*localOrigin.z - k0) + localOrigin.x*m3 + localOrigin.y*m4 + m0*m5;
-
+    // Cubic coefficients f(t) = c3*t^3 + c2*t^2 + c1*t + c0
+    float c0 = (k4*localOrigin.z - s000) + localOrigin.x*m3 + localOrigin.y*m4 + m0*m5;
     float c1 = localDir.x*m3 + localDir.y*m4 + m2*m5 +
                localDir.z*(k4 + k5*localOrigin.x + k6*localOrigin.y + k7*m0);
-
     float c2 = m1*m5 + localDir.z*(k5*localDir.x + k6*localDir.y + k7*m2);
-
     float c3 = k7*m1*localDir.z;
 
-    // Solving the equation //
-    // f'(t) = 3*c3*t² + 2*c2*t + c1
-    // find the locals extrema (if they exist) : f'(t) = 0
+    vec4 c = vec4(c0, c1, c2, c3);
 
-    // critical cases
-    if (abs(c3) < 1e-6) {
-        if (abs(c2) < 1e-6) {
-            if (abs(c1) < 1e-6) return (c0 == 0.);
-            float t = -c0 / c1;
-            return t >= 0. && t <= 1.;
-        }
-        float d = c1*c1 - 4.*c2*c0;
-        if (d < 0.) return false;
-        float t1 = (-c1 - sqrt(d))/(2.*c2);
-        float t2 = (-c1 + sqrt(d))/(2.*c2);
-        return (t1>=0. && t1<=1.) || (t2>=0. && t2<=1.);
-    }
-
-
+    // Evaluate endpoints in 0 and 1
     float f0 = c0;
     float f1 = c0 + c1 + c2 + c3;
 
-    float delta = 4.0*c2*c2 - 12.0*c3*c1;
-    float b0;
-    float b1;
+    // critical cases
+    if (abs(c3) < 1e-8) {
+        if (abs(c2) < 1e-8) {
+            if (abs(c1) < 1e-8) {
+                if (c0 == 0.) return 0.;
+                return 1./0.;
+            }
+            float t = -c0 / c1;
+            if (t >= 0. && t <= 1.) return t;
+            return 1./0.;
+        }
+        float d = c1*c1 - 4.*c2*c0;
+        if (d < 0.) return 1./0.;
+        float t1 = (-c1 - sqrt(d))/(2.*c2);
+        float t2 = (-c1 + sqrt(d))/(2.*c2);
+        if (t1>=0. && t1<=1.) return t1;
+        if (t2>=0. && t2<=1.) return t2;
+        return 1./0.;
+    }
 
-    if (delta >= 0.0) {
+    // Find a bracket [ta, tb] that crosses 0
+    bool hasRoot = false;
+    float ta,tb;
+    float tArray[4];
+    int count = 0;
+
+    tArray[count++] = 0.;
+
+    float delta = 4.*c2*c2 + 12.*c3*c1;
+    if (delta >= 0.) {
         float s = sqrt(delta);
-        float t1 = (-2.0*c2 - s)/(6.0*c3);
-        float t2 = (-2.0*c2 + s)/(6.0*c3);
-        vec4 c = vec4(c0, c1, c2, c3);
+        float t1 = (-c1-s)/(2.*c2);
+        float t2 = (-c1+s)/(2.*c2);
+        float t1Ordered = min(t1, t2);
+        float t2Ordered = max(t1, t2);
+        if (t1Ordered>0. && t1Ordered<1.) tArray[count++] = t1Ordered;
+        if (t2Ordered>0. && t2Ordered<1.) tArray[count++] = t2Ordered;
+    }
+    tArray[count++] = 1.;
 
-        if (t1>0.0 && t1<1.0) {
-            float ft1 = poly3(c,t1);
-            if (min(f0, ft1)<= 0. && max(f0, ft1)>= 0.) {
-                b0 = f0;
-                b1 = ft1;
-            }
-            else if (t2>0.0 && t2<1.0) {
-                float ft2 = poly3(c,t2);
-                if (min(ft1, ft2)<= 0. && max(ft1, ft2)>= 0.) {
-                    b0 = ft1;
-                    b1 = ft2;
-                }
-                else if (min(ft2, f1)<= 0. && max(ft2, f1)>= 0.) {
-                    b0 = ft2;
-                    b1 = f1;
-                }
-                else {
-                    return false;
-                }
-            }
-            else if (min(ft1, f1)<= 0. && max(ft1, f1)>= 0.) {
-                b0 = ft1;
-                b1 = f1;
-            }
-            else {
-                return false;
-            }
-        }
-        else if (t2>0.0 && t2<1.0) {
-            float ft2 = poly3(c,t2);
-            if (min(f0, ft2)<= 0. && max(f0, ft2)>= 0.) {
-                b0 = f0;
-                b1 = ft2;
-            }
-            else if (min(ft2, f1)<= 0. && max(ft2, f1)>= 0.) {
-                b0 = ft2;
-                b1 = f1;
-            }
-            else {
-                return false;
-            }
-        }
-        else if (min(f0, f1)<= 0. && max(f0, f1)>= 0.) {
-            b0 = f0;
-            b1 = f1;
-        }
-        else {
-            return false;
+    for(int i = 0; i < count-1; i++) {
+        float a = tArray[i];
+        float b = tArray[i+1];
+
+        float fa = poly3(c, a);
+        float fb = poly3(c, b);
+
+        if (signDiff(fa, fb)) {
+            ta = a;
+            tb = b;
+            hasRoot = true;
+            break;
         }
     }
-    else if (min(f0, f1)<= 0. && max(f0, f1)>= 0.) {
-        b0 = f0;
-        b1 = f1;
-    }
-    else {
-        return false;
+    // if none -> no solutions
+    if (!hasRoot) return 1./0.;
+
+    // if one -> determine solution with Newton's method
+    float t = 0.5 * (ta + tb); // starting point
+    vec3 d = vec3(3.0*c3, 2.0*c2, c1);
+
+    for (int i = 0; i < newtonNMax; i++) {
+        float f = poly3(c, t);
+        float df = poly2(d, t);
+
+        float tNew;
+        if (abs(df) > 1e-6) {
+            tNew = t - f/df;
+            if (tNew < ta || tNew > tb) {
+                tNew = 0.5 * (ta + tb);
+            }
+        } else {
+            tNew = 0.5 * (ta + tb);
+        }
+
+        float fNew = poly3(c, tNew);
+
+        if (fNew > 0.0)
+            tb = tNew;
+        else
+            ta = tNew;
+
+        t = tNew;
     }
 
-    return true;
+    return t;
 }
 
 // print all data (not working)
@@ -225,8 +233,9 @@ void main() {
             break;
         }
         float tNext = min(tMax.x, min(tMax.y, tMax.z));
-        if (intersectVoxel(currentVoxel, currentVoxelInt, position + t*ray, ray, tNext-t)) {
-            finalColor = vec4(currentVoxel/(float(n-1)), 1.);
+        float tHit = intersectVoxel(currentVoxel, currentVoxelInt, position + t*ray, ray, tNext-t);
+        if (tHit!=1./0.) {
+            finalColor = vec4(vec3(tHit), 1.);
             return;
         }
         if(tMax.x < tMax.y) {
