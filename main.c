@@ -109,7 +109,7 @@ int main ()
 
 	float fov = 1.2;
 	Vector3 startPoint = (Vector3){0., 0., 0.};
-	float voxelSize = 0.1;
+	float voxelSize = 1.;
 
 	int n = 16;
 	uint32_t* voxelArray = calloc((n*n*n-1)/4+1, sizeof(uint32_t));

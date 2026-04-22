@@ -103,10 +103,9 @@ bool intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, flo
     float f0 = c0;
     float f1 = c0 + c1 + c2 + c3;
 
-    float minV = min(f0,f1);
-    float maxV = max(f0,f1);
-
     float delta = 4.0*c2*c2 - 12.0*c3*c1;
+    float b0;
+    float b1;
 
     if (delta >= 0.0) {
         float s = sqrt(delta);
@@ -115,18 +114,64 @@ bool intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, flo
         vec4 c = vec4(c0, c1, c2, c3);
 
         if (t1>0.0 && t1<1.0) {
-            float f = poly3(c,t1);
-            minV = min(minV,f);
-            maxV = max(maxV,f);
+            float ft1 = poly3(c,t1);
+            if (min(f0, ft1)<= 0. && max(f0, ft1)>= 0.) {
+                b0 = f0;
+                b1 = ft1;
+            }
+            else if (t2>0.0 && t2<1.0) {
+                float ft2 = poly3(c,t2);
+                if (min(ft1, ft2)<= 0. && max(ft1, ft2)>= 0.) {
+                    b0 = ft1;
+                    b1 = ft2;
+                }
+                else if (min(ft2, f1)<= 0. && max(ft2, f1)>= 0.) {
+                    b0 = ft2;
+                    b1 = f1;
+                }
+                else {
+                    return false;
+                }
+            }
+            else if (min(ft1, f1)<= 0. && max(ft1, f1)>= 0.) {
+                b0 = ft1;
+                b1 = f1;
+            }
+            else {
+                return false;
+            }
         }
-        if (t2>0.0 && t2<1.0) {
-            float f = poly3(c,t2);
-            minV = min(minV,f);
-            maxV = max(maxV,f);
+        else if (t2>0.0 && t2<1.0) {
+            float ft2 = poly3(c,t2);
+            if (min(f0, ft2)<= 0. && max(f0, ft2)>= 0.) {
+                b0 = f0;
+                b1 = ft2;
+            }
+            else if (min(ft2, f1)<= 0. && max(ft2, f1)>= 0.) {
+                b0 = ft2;
+                b1 = f1;
+            }
+            else {
+                return false;
+            }
+        }
+        else if (min(f0, f1)<= 0. && max(f0, f1)>= 0.) {
+            b0 = f0;
+            b1 = f1;
+        }
+        else {
+            return false;
         }
     }
+    else if (min(f0, f1)<= 0. && max(f0, f1)>= 0.) {
+        b0 = f0;
+        b1 = f1;
+    }
+    else {
+        return false;
+    }
 
-    return (minV <= 0.0 && maxV >= 0.0);
+    return true;
 }
 
 // print all data (not working)
