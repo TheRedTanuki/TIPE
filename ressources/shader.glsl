@@ -45,8 +45,41 @@ bool signDiff(float x1, float x2) {
     return x1*x2 <= 0.;
 }
 
-float intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, float tSegment)
-{
+float lerp(float x, float a, float b) {
+    return a + x*(b-a);
+}
+
+vec4 computeNormal(
+    float s000,
+    float s100,
+    float s010,
+    float s110,
+    float s001,
+    float s101,
+    float s011,
+    float s111,
+    float t,
+    vec3 rayDir
+    ) {
+        float x = rayDir.x*t;
+        float y = rayDir.y*t;
+        float z = rayDir.z*t;
+
+        float y0 = lerp(y, s100 - s000, s110 - s010);
+        float y1 = lerp(y, s101 - s001, s111 - s011);
+        float dx = lerp(z, y0, y1);
+
+        float x0 = lerp(x, s010 - s000, s110 - s100);
+        float x1 = lerp(x, s011 - s001, s111 - s101);
+        float dy = lerp(z, x0, x1);
+
+        x0 = lerp(x, s001 - s000, s101 - s100);
+        x1 = lerp(x, s011 - s010, s111 - s110);
+        float dz = lerp(y, x0, x1);
+        return vec4(normalize(vec3(dx, dy, dz)), 1.);
+    }
+
+vec4 intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, float tSegment) {
     vec3 voxelWorld = startPoint + voxel * voxelSize;
 
     vec3 localOrigin = (rayOrigin - voxelWorld) / voxelSize;
@@ -95,23 +128,24 @@ float intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, fl
     float f1 = c0 + c1 + c2 + c3;
 
     // critical cases
+    // please note that t is exact in these cases
     if (abs(c3) < 1e-8) {
         if (abs(c2) < 1e-8) {
             if (abs(c1) < 1e-8) {
-                if (c0 == 0.) return 0.;
-                return 1./0.;
+                if (c0 == 0.) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, 0., rayDir);
+                return vec4(0.);
             }
             float t = -c0 / c1;
-            if (t >= 0. && t <= 1.) return t;
-            return 1./0.;
+            if (t >= 0. && t <= 1.) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, t, rayDir);
+            return vec4(0.);
         }
         float d = c1*c1 - 4.*c2*c0;
-        if (d < 0.) return 1./0.;
+        if (d < 0.) return vec4(0.);
         float t1 = (-c1 - sqrt(d))/(2.*c2);
         float t2 = (-c1 + sqrt(d))/(2.*c2);
-        if (t1>=0. && t1<=1.) return t1;
-        if (t2>=0. && t2<=1.) return t2;
-        return 1./0.;
+        if (t1>=0. && t1<=1.) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, t1, rayDir);
+        if (t2>=0. && t2<=1.) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, t2, rayDir);
+        return vec4(0.);
     }
 
     // Find a bracket [ta, tb] that crosses 0
@@ -149,7 +183,7 @@ float intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, fl
         }
     }
     // if none -> no solutions
-    if (!hasRoot) return 1./0.;
+    if (!hasRoot) return vec4(0.);
 
     // if one -> determine solution with Newton's method
     float t = 0.5 * (ta + tb); // starting point
@@ -179,7 +213,7 @@ float intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, fl
         t = tNew;
     }
 
-    return t;
+    return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, t, rayDir);
 }
 
 // print all data (not working)
@@ -233,9 +267,9 @@ void main() {
             break;
         }
         float tNext = min(tMax.x, min(tMax.y, tMax.z));
-        float tHit = intersectVoxel(currentVoxel, currentVoxelInt, position + t*ray, ray, tNext-t);
-        if (tHit!=1./0.) {
-            finalColor = vec4(vec3(tHit), 1.);
+        vec4 color = intersectVoxel(currentVoxel, currentVoxelInt, position + t*ray, ray, tNext-t);
+        if (color!=vec4(0.)) {
+            finalColor = vec4(vec3((dot(color.xyz, vec3(1., 0., 0.))+1.)/2.), 1.0);
             return;
         }
         if(tMax.x < tMax.y) {
