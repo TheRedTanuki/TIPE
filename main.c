@@ -85,6 +85,27 @@ double sdf(Vector3 pos, Vector2 t) {
   return lengthV2(q)-t.y;
 }
 
+void updateBuffer(uint32_t* voxelArray, int n, double time) {
+	for(int k = 0; k<n; k++) {
+		for(int j = 0; j<n; j++) {
+			for(int i = 0; i<n; i++) {
+				int index = i+n*j+n*n*k;
+				double movingCenter = (n-1+sin(time))/2.;
+				double c = (n-1)/2.;
+				Vector3 pos = (Vector3){(double)i-movingCenter, (double)j-c, (double)k-c};
+				double dist = sdf(pos, (Vector2){3., 1.5})/(sqrt(2))*127;
+				uint32_t val = (uint32_t)(clamp((int)dist, -127, 127)+127);
+				uint32_t shift = (index % 4) * 8;
+				uint32_t mask  = 0xFFu << shift;
+
+				voxelArray[index/4] =
+					(voxelArray[index/4] & ~mask) |
+					(val << shift);
+			}
+		}
+	}
+}
+
 int main ()
 {
 	SetConfigFlags(FLAG_WINDOW_HIGHDPI);
@@ -113,25 +134,8 @@ int main ()
 
 	int n = 16;
 	uint32_t* voxelArray = calloc((n*n*n-1)/4+1, sizeof(uint32_t));
-	for(int k = 0; k<n; k++) {
-		for(int j = 0; j<n; j++) {
-			for(int i = 0; i<n; i++) {
-				int index = i+n*j+n*n*k;
-				double c = (n-1)/2.;
-				Vector3 pos = (Vector3){(double)i-c, (double)j-c, (double)k-c};
-				double dist = sdf(pos, (Vector2){4.5, 3.})/(sqrt(2))*127;
-				uint32_t val = (uint32_t)(clamp((int)dist, -127, 127)+127);
-				uint32_t shift = (index % 4) * 8;
-				uint32_t mask  = 0xFFu << shift;
-
-				voxelArray[index/4] =
-					(voxelArray[index/4] & ~mask) |
-					(val << shift);
-			}
-		}
-	}
-	
-	int ssbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), voxelArray, RL_STATIC_READ);
+	updateBuffer(voxelArray, n, GetTime());
+	int ssbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), voxelArray, RL_DYNAMIC_READ);
 	rlBindShaderBuffer(ssbo, 0);
 
 	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
@@ -153,7 +157,8 @@ int main ()
 
 	while (!WindowShouldClose())
 	{
-		
+		updateBuffer(voxelArray, n, GetTime());
+		rlUpdateShaderBuffer(ssbo, voxelArray, ((n*n*n-1)/4+1)*sizeof(uint32_t), 0);
 		Vector2 delta = GetMouseDelta();
 		pitch += (double)delta.y*GetFrameTime()*0.5;
 		yaw += (double)delta.x*GetFrameTime()*0.5;
