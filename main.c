@@ -132,11 +132,12 @@ int main ()
 	Vector3 startPoint = (Vector3){0., 0., 0.};
 	float voxelSize = 1.;
 
-	int n = 16;
+	int n = 32;
 	uint32_t* voxelArray = calloc((n*n*n-1)/4+1, sizeof(uint32_t));
 	updateBuffer(voxelArray, n, GetTime());
 	int ssbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), voxelArray, RL_DYNAMIC_READ);
 	rlBindShaderBuffer(ssbo, 0);
+	bool updateEnabled = false;
 
 	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
 	SetShaderValue(shader, fovLoc, &fov, SHADER_UNIFORM_FLOAT);
@@ -157,8 +158,10 @@ int main ()
 
 	while (!WindowShouldClose())
 	{
-		updateBuffer(voxelArray, n, GetTime());
-		rlUpdateShaderBuffer(ssbo, voxelArray, ((n*n*n-1)/4+1)*sizeof(uint32_t), 0);
+		if (updateEnabled) {
+			updateBuffer(voxelArray, n, GetTime());
+			rlUpdateShaderBuffer(ssbo, voxelArray, ((n*n*n-1)/4+1)*sizeof(uint32_t), 0);
+		}
 		Vector2 delta = GetMouseDelta();
 		pitch += (double)delta.y*GetFrameTime()*0.5;
 		yaw += (double)delta.x*GetFrameTime()*0.5;
@@ -178,6 +181,7 @@ int main ()
 		if(IsKeyDown(KEY_D)) pos = vect3Add(scalarMultVect3(vectRight, GetFrameTime()*25), pos);
 		if(IsKeyDown(KEY_SPACE)) pos = vect3Add(scalarMultVect3(vectUp, GetFrameTime()*10), pos);
 		if(IsKeyDown(KEY_LEFT_SHIFT)) pos = vect3Add(scalarMultVect3(vectUp, -GetFrameTime()*10), pos);
+		if(IsKeyPressed(KEY_Q)) updateEnabled ^= true;
 		
 		SetShaderValue(shader, ratioLoc, &ratio, SHADER_UNIFORM_FLOAT);
 		SetShaderValue(shader, cameraForwardLoc, &vectForward, SHADER_UNIFORM_VEC3);
