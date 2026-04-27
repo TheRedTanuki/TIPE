@@ -13,6 +13,7 @@ uniform float fov = 1.;
 uniform float voxelSize = 1.;
 uniform vec3 startPoint = vec3 (0., 0., 0.);
 uniform int newtonNMax = 5; // precision of t determination (increase for more precision)
+uniform int mode;
 
 layout(std430, binding = 0) buffer MyBuffer {
     uint data[];
@@ -212,8 +213,8 @@ vec4 intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, flo
 
         t = tNew;
     }
-
-    return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, t, rayDir);
+    if (mode == 1) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, t, rayDir);
+    return vec4(vec3(t), 1.0);
 }
 
 // print all data (not working)

@@ -127,6 +127,7 @@ int main ()
 	int startPointLoc = GetShaderLocation(shader, "startPoint");
 	int voxelSizeLoc = GetShaderLocation(shader, "voxelSize");
 	int fovLoc = GetShaderLocation(shader, "fov");
+	int modeLoc = GetShaderLocation(shader, "mode");
 
 	float fov = 1.2;
 	Vector3 startPoint = (Vector3){0., 0., 0.};
@@ -138,6 +139,8 @@ int main ()
 	int ssbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), voxelArray, RL_DYNAMIC_READ);
 	rlBindShaderBuffer(ssbo, 0);
 	bool updateEnabled = false;
+	int mode = 0;
+	int modeNumber = 2;
 
 	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
 	SetShaderValue(shader, fovLoc, &fov, SHADER_UNIFORM_FLOAT);
@@ -182,12 +185,14 @@ int main ()
 		if(IsKeyDown(KEY_SPACE)) pos = vect3Add(scalarMultVect3(vectUp, GetFrameTime()*10), pos);
 		if(IsKeyDown(KEY_LEFT_SHIFT)) pos = vect3Add(scalarMultVect3(vectUp, -GetFrameTime()*10), pos);
 		if(IsKeyPressed(KEY_Q)) updateEnabled ^= true;
+		if(IsKeyPressed(KEY_E)) mode = (mode+1)%modeNumber;
 		
 		SetShaderValue(shader, ratioLoc, &ratio, SHADER_UNIFORM_FLOAT);
 		SetShaderValue(shader, cameraForwardLoc, &vectForward, SHADER_UNIFORM_VEC3);
 		SetShaderValue(shader, cameraRightLoc, &vectRight, SHADER_UNIFORM_VEC3);
 		SetShaderValue(shader, cameraUpLoc, &vectUp, SHADER_UNIFORM_VEC3);
-		SetShaderValue(shader, positionLoc, &pos, SHADER_UNIFORM_VEC3);		
+		SetShaderValue(shader, positionLoc, &pos, SHADER_UNIFORM_VEC3);
+		SetShaderValue(shader, modeLoc, &mode, SHADER_UNIFORM_INT);
 
 		BeginTextureMode(target);
 			DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), RAYWHITE);
