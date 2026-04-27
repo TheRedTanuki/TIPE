@@ -140,7 +140,7 @@ int main ()
 	rlBindShaderBuffer(ssbo, 0);
 	bool updateEnabled = false;
 	int mode = 0;
-	int modeNumber = 2;
+	int modeNumber = 4;
 
 	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
 	SetShaderValue(shader, fovLoc, &fov, SHADER_UNIFORM_FLOAT);

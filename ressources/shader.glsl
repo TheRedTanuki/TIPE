@@ -14,6 +14,7 @@ uniform float voxelSize = 1.;
 uniform vec3 startPoint = vec3 (0., 0., 0.);
 uniform int newtonNMax = 5; // precision of t determination (increase for more precision)
 uniform int mode;
+uniform vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
 
 layout(std430, binding = 0) buffer MyBuffer {
     uint data[];
@@ -130,91 +131,104 @@ vec4 intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, flo
 
     // critical cases
     // please note that t is exact in these cases
-    if (abs(c3) < 1e-8) {
-        if (abs(c2) < 1e-8) {
-            if (abs(c1) < 1e-8) {
-                if (c0 == 0.) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, 0., rayDir);
-                return vec4(0.);
+    float tIntersect;
+    if (abs(c3) < 1e-6) {
+        if (abs(c2) < 1e-6) {
+            if (abs(c1) < 1e-6) {
+                if (c0 == 0.) tIntersect = 0;
+                else return vec4(0.);
             }
             float t = -c0 / c1;
-            if (t >= 0. && t <= 1.) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, t, rayDir);
-            return vec4(0.);
+            if (t >= 0. && t <= 1.) tIntersect = t;
+            else return vec4(0.);
         }
-        float d = c1*c1 - 4.*c2*c0;
-        if (d < 0.) return vec4(0.);
-        float t1 = (-c1 - sqrt(d))/(2.*c2);
-        float t2 = (-c1 + sqrt(d))/(2.*c2);
-        if (t1>=0. && t1<=1.) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, t1, rayDir);
-        if (t2>=0. && t2<=1.) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, t2, rayDir);
-        return vec4(0.);
-    }
-
-    // Find a bracket [ta, tb] that crosses 0
-    bool hasRoot = false;
-    float ta,tb;
-    float tArray[4];
-    int count = 0;
-
-    tArray[count++] = 0.;
-
-    float delta = 4.*c2*c2 + 12.*c3*c1;
-    if (delta >= 0.) {
-        float s = sqrt(delta);
-        float t1 = (-c1-s)/(2.*c2);
-        float t2 = (-c1+s)/(2.*c2);
-        float t1Ordered = min(t1, t2);
-        float t2Ordered = max(t1, t2);
-        if (t1Ordered>0. && t1Ordered<1.) tArray[count++] = t1Ordered;
-        if (t2Ordered>0. && t2Ordered<1.) tArray[count++] = t2Ordered;
-    }
-    tArray[count++] = 1.;
-
-    for(int i = 0; i < count-1; i++) {
-        float a = tArray[i];
-        float b = tArray[i+1];
-
-        float fa = poly3(c, a);
-        float fb = poly3(c, b);
-
-        if (signDiff(fa, fb)) {
-            ta = a;
-            tb = b;
-            hasRoot = true;
-            break;
+        else {
+            float d = c1*c1 - 4.*c2*c0;
+            if (d < 0.) return vec4(0.);
+            float t1 = (-c1 - sqrt(d))/(2.*c2);
+            if (t1>=0. && t1<=1.) tIntersect = t1;
+            else {
+                float t2 = (-c1 + sqrt(d))/(2.*c2);
+                if (t2>=0. && t2<=1.) tIntersect = t2;
+                else return vec4(0.);
+            }
         }
     }
-    // if none -> no solutions
-    if (!hasRoot) return vec4(0.);
+    // normal cases
+    else {
+        // Find a bracket [ta, tb] that crosses 0
+        bool hasRoot = false;
+        float ta,tb;
+        float tArray[4];
+        int count = 0;
 
-    // if one -> determine solution with Newton's method
-    float t = 0.5 * (ta + tb); // starting point
-    vec3 d = vec3(3.0*c3, 2.0*c2, c1);
+        tArray[count++] = 0.;
 
-    for (int i = 0; i < newtonNMax; i++) {
-        float f = poly3(c, t);
-        float df = poly2(d, t);
+        float delta = 4.*c2*c2 + 12.*c3*c1;
+        if (delta >= 0.) {
+            float s = sqrt(delta);
+            float t1 = (-c1-s)/(2.*c2);
+            float t2 = (-c1+s)/(2.*c2);
+            float t1Ordered = min(t1, t2);
+            float t2Ordered = max(t1, t2);
+            if (t1Ordered>0. && t1Ordered<1.) tArray[count++] = t1Ordered;
+            if (t2Ordered>0. && t2Ordered<1.) tArray[count++] = t2Ordered;
+        }
+        tArray[count++] = 1.;
 
-        float tNew;
-        if (abs(df) > 1e-6) {
-            tNew = t - f/df;
-            if (tNew < ta || tNew > tb) {
+        for(int i = 0; i < count-1; i++) {
+            float a = tArray[i];
+            float b = tArray[i+1];
+
+            float fa = poly3(c, a);
+            float fb = poly3(c, b);
+
+            if (signDiff(fa, fb)) {
+                ta = a;
+                tb = b;
+                hasRoot = true;
+                break;
+            }
+        }
+        // if none -> no solutions
+        if (!hasRoot) return vec4(0.);
+
+        // if one -> determine solution with Newton's method
+        float t = 0.5 * (ta + tb); // starting point
+        vec3 d = vec3(3.0*c3, 2.0*c2, c1);
+
+        for (int i = 0; i < newtonNMax; i++) {
+            float f = poly3(c, t);
+            float df = poly2(d, t);
+
+            float tNew;
+            if (abs(df) > 1e-6) {
+                tNew = t - f/df;
+                if (tNew < ta || tNew > tb) {
+                    tNew = 0.5 * (ta + tb);
+                }
+            } else {
                 tNew = 0.5 * (ta + tb);
             }
-        } else {
-            tNew = 0.5 * (ta + tb);
+
+            float fNew = poly3(c, tNew);
+
+            if (fNew > 0.0)
+                tb = tNew;
+            else
+                ta = tNew;
+
+            t = tNew;
         }
-
-        float fNew = poly3(c, tNew);
-
-        if (fNew > 0.0)
-            tb = tNew;
-        else
-            ta = tNew;
-
-        t = tNew;
+        tIntersect = t;
     }
-    if (mode == 1) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, t, rayDir);
-    return vec4(vec3(t), 1.0);
+    if (mode == 1) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
+        if (mode == 2) return vec4(voxel/float(n), 1.);
+        if (mode == 3) {
+            vec4 color = computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
+            return vec4(vec3((dot(color.xyz, lightDir)+1.)/2.), 1.0);
+        }
+        return vec4(vec3(tIntersect), 1.);
 }
 
 // print all data (not working)
@@ -270,7 +284,7 @@ void main() {
         float tNext = min(tMax.x, min(tMax.y, tMax.z));
         vec4 color = intersectVoxel(currentVoxel, currentVoxelInt, position + t*ray, ray, tNext-t);
         if (color!=vec4(0.)) {
-            finalColor = vec4(vec3((dot(color.xyz, vec3(1., 0., 0.))+1.)/2.), 1.0);
+            finalColor = color;
             return;
         }
         if(tMax.x < tMax.y) {
