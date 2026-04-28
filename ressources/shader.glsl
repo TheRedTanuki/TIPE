@@ -12,7 +12,7 @@ uniform int n;
 uniform float fov = 1.;
 uniform float voxelSize = 1.;
 uniform vec3 startPoint = vec3 (0., 0., 0.);
-uniform int newtonNMax = 5; // precision of t determination (increase for more precision)
+uniform int newtonNMax = 15; // precision of t determination (increase for more precision)
 uniform int mode;
 uniform vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
 
@@ -81,7 +81,8 @@ vec4 computeNormal(
         return vec4(normalize(vec3(dx, dy, dz)), 1.);
     }
 
-vec4 intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, float tSegment) {
+vec4 intersectVoxel(vec3 voxel, vec3 rayOrigin, vec3 rayDir, float tSegment) {
+    ivec3 voxelInt = ivec3(voxel);
     vec3 voxelWorld = startPoint + voxel * voxelSize;
 
     vec3 localOrigin = (rayOrigin - voxelWorld) / voxelSize;
@@ -135,7 +136,7 @@ vec4 intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, flo
     if (abs(c3) < 1e-6) {
         if (abs(c2) < 1e-6) {
             if (abs(c1) < 1e-6) {
-                if (c0 == 0.) tIntersect = 0;
+                if (abs(c0) < 1e-9) tIntersect = 0;
                 else return vec4(0.);
             }
             float t = -c0 / c1;
@@ -223,12 +224,12 @@ vec4 intersectVoxel(vec3 voxel, ivec3 voxelInt, vec3 rayOrigin, vec3 rayDir, flo
         tIntersect = t;
     }
     if (mode == 1) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
-        if (mode == 2) return vec4(voxel/float(n), 1.);
-        if (mode == 3) {
-            vec4 color = computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
-            return vec4(vec3((dot(color.xyz, lightDir)+1.)/2.), 1.0);
-        }
-        return vec4(vec3(tIntersect), 1.);
+    if (mode == 2) return vec4(voxel/float(n), 1.);
+    if (mode == 3) {
+        vec4 color = computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
+        return vec4(vec3((dot(color.xyz, lightDir)+1.)/2.), 1.0);
+    }
+    return vec4(vec3(tIntersect), 1.);
 }
 
 // print all data (not working)
@@ -271,7 +272,6 @@ void main() {
     vec3 stepVect = sign(ray);
     ivec3 stepVectInt = ivec3(stepVect);
     vec3 currentVoxel = floor((pos-startPoint)/voxelSize + ray*1e-4*voxelSize);
-    ivec3 currentVoxelInt = ivec3(currentVoxel);
 
     vec3 nextVoxelBoundary = (currentVoxel + max(stepVect, vec3(0.0)))*voxelSize + startPoint;
     vec3 tMax = (nextVoxelBoundary-position)*invRay;
@@ -282,7 +282,7 @@ void main() {
             break;
         }
         float tNext = min(tMax.x, min(tMax.y, tMax.z));
-        vec4 color = intersectVoxel(currentVoxel, currentVoxelInt, position + t*ray, ray, tNext-t);
+        vec4 color = intersectVoxel(currentVoxel, position + t*ray, ray, tNext-t);
         if (color!=vec4(0.)) {
             finalColor = color;
             return;
@@ -290,13 +290,11 @@ void main() {
         if(tMax.x < tMax.y) {
             if(tMax.x < tMax.z) {
                 currentVoxel.x += stepVect.x;
-                currentVoxelInt.x += stepVectInt.x;
                 t = tMax.x;
                 tMax.x += tDelta.x;
             }
             else {
                 currentVoxel.z += stepVect.z;
-                currentVoxelInt.z += stepVectInt.z;
                 t = tMax.z;
                 tMax.z += tDelta.z;
             }
@@ -304,13 +302,11 @@ void main() {
         else {
             if(tMax.y < tMax.z) {
                 currentVoxel.y += stepVect.y;
-                currentVoxelInt.y += stepVectInt.y;
                 t = tMax.y;
                 tMax.y += tDelta.y;
             }
             else {
                 currentVoxel.z += stepVect.z;
-                currentVoxelInt.z += stepVectInt.z;
                 t = tMax.z;
                 tMax.z += tDelta.z;
             }

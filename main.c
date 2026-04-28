@@ -90,10 +90,10 @@ void updateBuffer(uint32_t* voxelArray, int n, double time) {
 		for(int j = 0; j<n; j++) {
 			for(int i = 0; i<n; i++) {
 				int index = i+n*j+n*n*k;
-				double movingCenter = (n-1+sin(time))/2.;
+				double movingCenter = (n-1+sin(time*0.5))/2.;
 				double c = (n-1)/2.;
 				Vector3 pos = (Vector3){(double)i-movingCenter, (double)j-c, (double)k-c};
-				double dist = sdf(pos, (Vector2){3., 1.5})/(sqrt(2))*127;
+				double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(2))*127;
 				uint32_t val = (uint32_t)(clamp((int)dist, -127, 127)+127);
 				uint32_t shift = (index % 4) * 8;
 				uint32_t mask  = 0xFFu << shift;
