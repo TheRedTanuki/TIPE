@@ -24,12 +24,6 @@ bool inBoundaries(vec3 pos) {
     return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(n-1))));
 }
 
-bool getVoxel(vec3 voxelPos) {
-    ivec3 co = ivec3(voxelPos);
-    int index = co.x+n*co.y+n*n*co.z;
-    return ((data[index/4] >> (index%4)*8) & uint(255))!=0;
-}
-
 int getValue(ivec3 coord) {
     int index = coord.x + n*coord.y + n*n*coord.z;
     return int((data[index/4] >> (index%4)*8) & uint(255))-127;
@@ -136,7 +130,7 @@ vec4 intersectVoxel(vec3 voxel, vec3 rayOrigin, vec3 rayDir, float tSegment) {
     if (abs(c3) < 1e-6) {
         if (abs(c2) < 1e-6) {
             if (abs(c1) < 1e-6) {
-                if (abs(c0) < 1e-9) tIntersect = 0;
+                if (abs(c0) < 1e-6) tIntersect = c0;
                 else return vec4(0.);
             }
             float t = -c0 / c1;

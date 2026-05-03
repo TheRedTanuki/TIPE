@@ -72,13 +72,16 @@ void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick
 						}
 					}
 				}
-				if(isEmpty || isFull) {
+				if(isEmpty) {
 					bricksArray[i+nBricks*j+nBricks*nBricks*k] = 0;
+				}
+				if(isFull) {
+					bricksArray[i+nBricks*j+nBricks*nBricks*k] = 1<<30;
 				}
 				else {
 					bricksArray[i+nBricks*j+nBricks*nBricks*k] = indice || 1<<31;
 					for(int a = 0; a<128; a++) {
-						dataArray[127*indice+a] = tempBrick[a];
+						dataArray[128*indice+a] = tempBrick[a];
 					}
 					indice++;
 				}
@@ -120,8 +123,10 @@ int main ()
 	uint32_t* bricksArray = malloc(nBricks*nBricks*nBricks*sizeof(uint32_t));
 	uint32_t* dataArray = malloc(nBricks*nBricks*nBricks*128*sizeof(uint32_t)); // TODO : find a way to reduce it before it's creation
 	updateBufferBrickMap(bricksArray, dataArray, nBricks);
+
 	int bricksArraySsbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
 	int dataArraySsbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
+
 	rlBindShaderBuffer(bricksArraySsbo, 0);
 	rlBindShaderBuffer(dataArraySsbo, 1);
 	bool updateEnabled = false;
