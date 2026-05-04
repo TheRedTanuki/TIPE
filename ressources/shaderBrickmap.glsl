@@ -8,9 +8,9 @@ uniform vec3 cameraForward = vec3 (1., 0., 0.);
 uniform vec3 cameraRight = vec3 (0., 1., 0.);
 uniform vec3 cameraUp = vec3 (0., 0., 1.);
 uniform vec3 position = vec3 (0., 0., 0.);
-uniform int nBricks;
+uniform int nBrick;
 uniform float fov = 1.;
-uniform float brickSize = 1.;
+uniform float brickSize = 8.;
 uniform vec3 startPoint = vec3 (0., 0., 0.);
 uniform int newtonNMax = 15; // precision of t determination (increase for more precision)
 uniform int mode;
@@ -24,8 +24,16 @@ layout(std430, binding = 1) buffer dataArray {
     uint data[];
 };
 
-uint getBrick(ivec3 pos) {
-    return bricks[pos.x + nBricks*pos.y + nBricks*nBricks*pos.z];
+bool inBoundaries(vec3 pos) {
+    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(nBrick-1))));
+}
+
+uint getBrickValue(ivec3 pos) {
+    return bricks[pos.x + nBrick*pos.y + nBrick*nBrick*pos.z];
+}
+
+bool getBrick(ivec3 pos) {
+    return getBrickValue(pos)>>31!=0;
 }
 
 uint getValue(uint offset, ivec3 localPos) {
@@ -35,7 +43,7 @@ uint getValue(uint offset, ivec3 localPos) {
 bool getVoxel(ivec3 voxel) {
     ivec3 brickPos = voxel/8;
     ivec3 localPos = voxel%ivec3(8);
-    uint res = getBrick(brickPos);
+    uint res = getBrickValue(brickPos);
     if (res>>31!=0) {
         uint offset = res&(1<<31 - 1);
         return getValue(offset, localPos)!=0;
@@ -45,7 +53,7 @@ bool getVoxel(ivec3 voxel) {
 }
 
 void main() {
-    vec3 endPoint = startPoint+vec3((nBricks-1)*brickSize);
+    vec3 endPoint = startPoint+vec3((nBrick-1)*brickSize);
     vec2 uv = fragTexCoord;
     uv *= 2.0;
     uv -= 1.;
@@ -72,6 +80,49 @@ void main() {
     float t = max(tmin, 0.0);
     pos += ray*t;
 
-    finalColor = vec4(0., 0., 0., 1.0);
+    vec3 stepVect = sign(ray);
+    ivec3 stepVectInt = ivec3(stepVect);
+    vec3 currentBrick = floor((pos-startPoint)/brickSize + ray*1e-4*brickSize);
+
+    vec3 nextBrickBoundary = (currentBrick + max(stepVect, vec3(0.0)))*brickSize + startPoint;
+    vec3 tMax = (nextBrickBoundary-position)*invRay;
+    vec3 tDelta = abs(invRay)*brickSize;
+
+    for(int i = 0; i<256; i++) {
+        if(!inBoundaries(currentBrick)) {
+            break;
+        }
+        float tNext = min(tMax.x, min(tMax.y, tMax.z));
+        if (getBrick(ivec3(currentBrick))) {
+            finalColor = vec4(1., 1., 1., 1.);
+            return;
+        }
+        if(tMax.x < tMax.y) {
+            if(tMax.x < tMax.z) {
+                currentBrick.x += stepVect.x;
+                t = tMax.x;
+                tMax.x += tDelta.x;
+            }
+            else {
+                currentBrick.z += stepVect.z;
+                t = tMax.z;
+                tMax.z += tDelta.z;
+            }
+        }
+        else {
+            if(tMax.y < tMax.z) {
+                currentBrick.y += stepVect.y;
+                t = tMax.y;
+                tMax.y += tDelta.y;
+            }
+            else {
+                currentBrick.z += stepVect.z;
+                t = tMax.z;
+                tMax.z += tDelta.z;
+            }
+        }
+    }
+
+    finalColor = vec4(1., 0., 0., 1.0);
     return;
 }

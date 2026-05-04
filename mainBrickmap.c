@@ -41,26 +41,26 @@ double sdf(Vector3 pos, Vector2 t) {
   return Vector2Length(q)-t.y;
 }
 
-void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBricks) {
+void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick) {
 	uint32_t* tempBrick = malloc(128*sizeof(int32_t));
 	uint32_t indice = 0;
-	for(int i = 0; i<nBricks; i++) {
-		for(int j = 0; j<nBricks; j++) {
-			for(int k = 0; k<nBricks; k++) {
+	for(int i = 0; i<nBrick; i++) {
+		for(int j = 0; j<nBrick; j++) {
+			for(int k = 0; k<nBrick; k++) {
 				bool isEmpty = true;
 				bool isFull = true;
 				for(int x = 0; x<8; x++) {
 					for(int y = 0; y<8; y++) {
 						for(int z = 0; z<8; z++) {
 							int index = x+8*y+8*8*z;
-							double c = (nBricks*8-1)/2.;
-							Vector3 pos = (Vector3){(double)(x+8*i)-c, (double)(y+8*j)-c, (double)(z+8*k)-c};
+							double c = (nBrick*8-1)/2.;
+							Vector3 pos = (Vector3){(double)(x+8*i)-c*GetTime(), (double)(y+8*j)-c, (double)(z+8*k)-c};
 							double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(2))*127;
 							uint32_t val = (uint32_t)(intClamp((int)dist, -127, 127)+127);
-							if(val != -127) {
+							if(val != 0) {
 								isFull = false;
 							}
-							else if(val != 127) {
+							else if(val != 254) {
 								isEmpty = false;
 							}
 							uint32_t shift = (index % 4) * 8;
@@ -73,13 +73,13 @@ void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick
 					}
 				}
 				if(isEmpty) {
-					bricksArray[i+nBricks*j+nBricks*nBricks*k] = 0;
+					bricksArray[i+nBrick*j+nBrick*nBrick*k] = 0;
 				}
-				if(isFull) {
-					bricksArray[i+nBricks*j+nBricks*nBricks*k] = 1<<30;
+				else if(isFull) {
+					bricksArray[i+nBrick*j+nBrick*nBrick*k] = 0|1<<30;
 				}
 				else {
-					bricksArray[i+nBricks*j+nBricks*nBricks*k] = indice || 1<<31;
+					bricksArray[i+nBrick*j+nBrick*nBrick*k] = indice | 1<<31;
 					for(int a = 0; a<128; a++) {
 						dataArray[128*indice+a] = tempBrick[a];
 					}
@@ -108,21 +108,21 @@ int main ()
 	int cameraRightLoc = GetShaderLocation(shader, "cameraRight");
 	int cameraUpLoc = GetShaderLocation(shader, "cameraUp");
 	int positionLoc = GetShaderLocation(shader, "position");
-	int nLoc = GetShaderLocation(shader, "n");
+	int nBrickLoc = GetShaderLocation(shader, "nBrick");
 	int startPointLoc = GetShaderLocation(shader, "startPoint");
-	int voxelSizeLoc = GetShaderLocation(shader, "voxelSize");
+	int brickSizeLoc = GetShaderLocation(shader, "brickSize");
 	int fovLoc = GetShaderLocation(shader, "fov");
 	int modeLoc = GetShaderLocation(shader, "mode");
 
 	float fov = 1.2;
 	Vector3 startPoint = (Vector3){0., 0., 0.};
-	float voxelSize = 1.;
+	float brickSize = 1.;
 
 	int n = 32;
-	int nBricks = 4;
-	uint32_t* bricksArray = malloc(nBricks*nBricks*nBricks*sizeof(uint32_t));
-	uint32_t* dataArray = malloc(nBricks*nBricks*nBricks*128*sizeof(uint32_t)); // TODO : find a way to reduce it before it's creation
-	updateBufferBrickMap(bricksArray, dataArray, nBricks);
+	int nBrick = 4;
+	uint32_t* bricksArray = malloc(nBrick*nBrick*nBrick*sizeof(uint32_t));
+	uint32_t* dataArray = malloc(nBrick*nBrick*nBrick*128*sizeof(uint32_t)); // TODO : find a way to reduce it before it's creation
+	updateBufferBrickMap(bricksArray, dataArray, nBrick);
 
 	int bricksArraySsbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
 	int dataArraySsbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
@@ -133,10 +133,10 @@ int main ()
 	int mode = 0;
 	int modeNumber = 4;
 
-	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
+	SetShaderValue(shader, nBrickLoc, &nBrick, SHADER_UNIFORM_INT);
 	SetShaderValue(shader, fovLoc, &fov, SHADER_UNIFORM_FLOAT);
 	SetShaderValue(shader, startPointLoc, &startPoint, SHADER_UNIFORM_VEC3);
-	SetShaderValue(shader, voxelSizeLoc, &voxelSize, SHADER_UNIFORM_FLOAT);
+	SetShaderValue(shader, brickSizeLoc, &brickSize, SHADER_UNIFORM_FLOAT);
 
 	Vector3 pos = {-1., -1., -1.};
 	Quaternion forward = {0., 1., 0., 0.};
@@ -153,7 +153,7 @@ int main ()
 	while (!WindowShouldClose())
 	{
 		if (updateEnabled) {
-			updateBufferBrickMap(bricksArray, dataArray, nBricks);
+			updateBufferBrickMap(bricksArray, dataArray, nBrick);
 			int bricksArraySsbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
 			int dataArraySsbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
 		}
