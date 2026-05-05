@@ -264,8 +264,7 @@ void main() {
     pos += ray*t;
 
     vec3 stepVect = sign(ray);
-    ivec3 stepVectInt = ivec3(stepVect);
-    vec3 currentVoxel = floor((pos-startPoint)/voxelSize + ray*1e-4*voxelSize);
+    vec3 currentVoxel = floor((pos-startPoint)/voxelSize + ray*1e-4);
 
     vec3 nextVoxelBoundary = (currentVoxel + max(stepVect, vec3(0.0)))*voxelSize + startPoint;
     vec3 tMax = (nextVoxelBoundary-position)*invRay;

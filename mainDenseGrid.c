@@ -160,9 +160,8 @@ int main ()
 			BeginShaderMode(shader);
 				DrawTextureRec(target.texture, (Rectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height}, (Vector2){0,0}, RAYWHITE);
 			EndShaderMode();
-		
+			DrawFPS(0, 0);
 		EndDrawing();
-		printf("%d | %lf x : %lf y : %lf z\n", GetFPS(), pos.x, pos.y, pos.z);
 	}
 
 	UnloadShader(shader);

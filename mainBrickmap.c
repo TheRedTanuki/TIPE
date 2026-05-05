@@ -41,8 +41,8 @@ double sdf(Vector3 pos, Vector2 t) {
   return Vector2Length(q)-t.y;
 }
 
-void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick) {
-	uint32_t* tempBrick = malloc(128*sizeof(int32_t));
+void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick, double time) {
+	uint32_t* tempBrick = calloc(128, sizeof(int32_t));
 	uint32_t indice = 0;
 	for(int i = 0; i<nBrick; i++) {
 		for(int j = 0; j<nBrick; j++) {
@@ -54,7 +54,7 @@ void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick
 						for(int z = 0; z<8; z++) {
 							int index = x+8*y+8*8*z;
 							double c = (nBrick*8-1)/2.;
-							Vector3 pos = (Vector3){(double)(x+8*i)-c*GetTime(), (double)(y+8*j)-c, (double)(z+8*k)-c};
+							Vector3 pos = (Vector3){(double)(x+8*i)-c, (double)(y+8*j)-c, (double)(z+8*k)-c};
 							double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(2))*127;
 							uint32_t val = (uint32_t)(intClamp((int)dist, -127, 127)+127);
 							if(val != 0) {
@@ -122,10 +122,10 @@ int main ()
 	int nBrick = 4;
 	uint32_t* bricksArray = malloc(nBrick*nBrick*nBrick*sizeof(uint32_t));
 	uint32_t* dataArray = malloc(nBrick*nBrick*nBrick*128*sizeof(uint32_t)); // TODO : find a way to reduce it before it's creation
-	updateBufferBrickMap(bricksArray, dataArray, nBrick);
+	updateBufferBrickMap(bricksArray, dataArray, nBrick, GetTime());
 
-	int bricksArraySsbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
-	int dataArraySsbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
+	int bricksArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
+	int dataArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*128*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
 
 	rlBindShaderBuffer(bricksArraySsbo, 0);
 	rlBindShaderBuffer(dataArraySsbo, 1);
@@ -153,9 +153,9 @@ int main ()
 	while (!WindowShouldClose())
 	{
 		if (updateEnabled) {
-			updateBufferBrickMap(bricksArray, dataArray, nBrick);
-			int bricksArraySsbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
-			int dataArraySsbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
+			updateBufferBrickMap(bricksArray, dataArray, nBrick, GetTime());
+			int bricksArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
+			int dataArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*128*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
 		}
 		Vector2 delta = GetMouseDelta();
 		pitch -= (double)delta.y*GetFrameTime()*0.5;
@@ -196,9 +196,8 @@ int main ()
 			BeginShaderMode(shader);
 				DrawTextureRec(target.texture, (Rectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height}, (Vector2){0,0}, RAYWHITE);
 			EndShaderMode();
-		
+			DrawFPS(0, 0);
 		EndDrawing();
-		printf("%d | %lf x : %lf y : %lf z\n", GetFPS(), pos.x, pos.y, pos.z);
 	}
 
 	UnloadShader(shader);

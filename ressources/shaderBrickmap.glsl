@@ -25,7 +25,11 @@ layout(std430, binding = 1) buffer dataArray {
 };
 
 bool inBoundaries(vec3 pos) {
-    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(nBrick-1))));
+    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(nBrick))));
+}
+
+bool inBrickBoundaries(vec3 localPos) {
+    return all(greaterThanEqual(localPos, vec3 (0.))) && all(lessThan(localPos, vec3 (8.)));
 }
 
 uint getBrickValue(ivec3 pos) {
@@ -37,23 +41,23 @@ bool getBrick(ivec3 pos) {
 }
 
 uint getValue(uint offset, ivec3 localPos) {
-    return data[offset*128 + localPos.x + 8*localPos.y + 8*8*localPos.z];
+    uint index = offset*128 + localPos.x + 8*localPos.y + 8*8*localPos.z;
+    return ((data[index/4] >> (index%4)*8) & uint(255));
 }
 
-bool getVoxel(ivec3 voxel) {
-    ivec3 brickPos = voxel/8;
-    ivec3 localPos = voxel%ivec3(8);
-    uint res = getBrickValue(brickPos);
+bool getVoxel(ivec3 voxel, ivec3 brick) {
+    uint res = getBrickValue(brick);
     if (res>>31!=0) {
-        uint offset = res&(1<<31 - 1);
-        return getValue(offset, localPos)!=0;
+        uint offset = res&uint(((1<<31) - 1));
+        return getValue(offset, voxel)!=254;
     }
-    if (((res>>30)&1) !=0) return false; // brick is full
+    if (((res>>30)&uint(1)) !=0) return false; // brick is full
     return false; // brick is empty
 }
 
 void main() {
-    vec3 endPoint = startPoint+vec3((nBrick-1)*brickSize);
+    vec3 endPoint = startPoint+vec3((nBrick)*brickSize);
+    float voxelSize = brickSize / 8.0;
     vec2 uv = fragTexCoord;
     uv *= 2.0;
     uv -= 1.;
@@ -81,8 +85,7 @@ void main() {
     pos += ray*t;
 
     vec3 stepVect = sign(ray);
-    ivec3 stepVectInt = ivec3(stepVect);
-    vec3 currentBrick = floor((pos-startPoint)/brickSize + ray*1e-4*brickSize);
+    vec3 currentBrick = floor((pos-startPoint)/brickSize + ray*1e-4);
 
     vec3 nextBrickBoundary = (currentBrick + max(stepVect, vec3(0.0)))*brickSize + startPoint;
     vec3 tMax = (nextBrickBoundary-position)*invRay;
@@ -94,8 +97,46 @@ void main() {
         }
         float tNext = min(tMax.x, min(tMax.y, tMax.z));
         if (getBrick(ivec3(currentBrick))) {
-            finalColor = vec4(1., 1., 1., 1.);
-            return;
+            //float tVoxel = 0.;
+            vec3 localOrigin = (position - startPoint - currentBrick*brickSize) / voxelSize;
+            vec3 localPos = localOrigin + t * (ray / voxelSize);
+            vec3 currentVoxel = floor(localPos + 1e-4*ray);
+            vec3 nextVoxelBoundary = currentVoxel + max(stepVect, vec3(0.0));
+            vec3 tMaxVoxel = (nextVoxelBoundary - localOrigin)*invRay*8.;
+            vec3 tDeltaVoxel = abs(invRay*8.);
+            for(int i = 0; i<24; i++) {
+                if(!inBrickBoundaries(currentVoxel)) {
+                    break;
+                }
+                if (getVoxel(ivec3(currentVoxel), ivec3(currentBrick))) {
+                    finalColor = vec4(1., 1., 1., 1.);
+                    return;
+                }
+                if(tMaxVoxel.x < tMaxVoxel.y) {
+                    if(tMaxVoxel.x < tMaxVoxel.z) {
+                        currentVoxel.x += stepVect.x;
+                        //tVoxel = tMaxVoxel.x;
+                        tMaxVoxel.x += tDeltaVoxel.x;
+                    }
+                    else {
+                        currentVoxel.z += stepVect.z;
+                        //tVoxel = tMaxVoxel.z;
+                        tMaxVoxel.z += tDeltaVoxel.z;
+                    }
+                }
+                else {
+                    if(tMaxVoxel.y < tMaxVoxel.z) {
+                        currentVoxel.y += stepVect.y;
+                        //tVoxel = tMaxVoxel.y;
+                        tMaxVoxel.y += tDeltaVoxel.y;
+                    }
+                    else {
+                        currentVoxel.z += stepVect.z;
+                        //tVoxel = tMaxVoxel.z;
+                        tMaxVoxel.z += tDeltaVoxel.z;
+                    }
+                }
+            }
         }
         if(tMax.x < tMax.y) {
             if(tMax.x < tMax.z) {
