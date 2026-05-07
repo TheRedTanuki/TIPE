@@ -38,7 +38,7 @@ Vector3 quatToVect3(Quaternion q) {
 
 double sdf(Vector3 pos, Vector2 t) {
   Vector2 q = (Vector2){Vector2Length((Vector2){pos.x, pos.z})-t.x, pos.y};
-  return Vector2Length(q)-t.y;
+  return Vector2Length(q)-t.x;
 }
 
 void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick, double time) {
@@ -53,14 +53,15 @@ void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick
 					for(int y = 0; y<8; y++) {
 						for(int z = 0; z<8; z++) {
 							int index = x+8*y+8*8*z;
+							double movingCenter = (nBrick*8-1+sin(time*0.5)*5)/2.;
 							double c = (nBrick*8-1)/2.;
-							Vector3 pos = (Vector3){(double)(x+8*i)-c, (double)(y+8*j)-c, (double)(z+8*k)-c};
+							Vector3 pos = (Vector3){(double)(x+8*i)-movingCenter, (double)(y+8*j)-c, (double)(z+8*k)-c};
 							double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(2))*127;
 							uint32_t val = (uint32_t)(intClamp((int)dist, -127, 127)+127);
 							if(val != 0) {
 								isFull = false;
 							}
-							else if(val != 254) {
+							if(val != 254) {
 								isEmpty = false;
 							}
 							uint32_t shift = (index % 4) * 8;
@@ -148,7 +149,7 @@ int main ()
 	double pitch = 0.0;
 	double yaw = 0.0;
 	double roll = 0.0;
-	SetTargetFPS(1000);
+	SetTargetFPS(600);
 
 	while (!WindowShouldClose())
 	{

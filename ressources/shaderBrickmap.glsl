@@ -41,18 +41,187 @@ bool getBrick(ivec3 pos) {
 }
 
 uint getValue(uint offset, ivec3 localPos) {
-    uint index = offset*128 + localPos.x + 8*localPos.y + 8*8*localPos.z;
-    return ((data[index/4] >> (index%4)*8) & uint(255));
+    uint index = localPos.x + 8*localPos.y + 8*8*localPos.z;
+    return ((data[(offset)*128 + index/4] >> (index%4)*8) & uint(255));
 }
 
-bool getVoxel(ivec3 voxel, ivec3 brick) {
+float getVoxel(ivec3 voxel, ivec3 brick) {
     uint res = getBrickValue(brick);
-    if (res>>31!=0) {
+    if (res>>31 != 0) {
         uint offset = res&uint(((1<<31) - 1));
-        return getValue(offset, voxel)!=254;
+        return getValue(offset, voxel);
     }
-    if (((res>>30)&uint(1)) !=0) return false; // brick is full
-    return false; // brick is empty
+    if (((res>>30)&uint(1)) !=0) return -127; // brick is full
+    return 127; // brick is empty
+}
+
+float poly3(vec4 c, float t) {
+    return c.w*t*t*t + c.z*t*t + c.y*t + c.x;
+}
+
+float poly2(vec3 c, float t) {
+    return c.z*t*t + c.y*t +c.x;
+}
+
+bool signDiff(float x1, float x2) {
+    return x1*x2 <= 0.;
+}
+
+float lerp(float x, float a, float b) {
+    return a + x*(b-a);
+}
+
+vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float tSegment) {
+    float voxelSize = brickSize/8.;
+    ivec3 voxelInt = ivec3(voxel);
+    ivec3 brickInt = ivec3(brick);
+    vec3 voxelWorld = startPoint + voxel * voxelSize + brick * brickSize;
+
+    vec3 localOrigin = (rayOrigin - voxelWorld) / voxelSize;
+    vec3 localDir    = (rayDir * tSegment) / voxelSize;
+
+    float scale = sqrt(2.0)/127.0;
+
+    // Trilinear interpolation coefficients
+    float s000 = float(getVoxel(voxelInt, brickInt)) * scale;
+    float s100 = float(getVoxel((voxelInt + ivec3(1,0,0))%8, brickInt + (voxelInt + ivec3(1,0,0))/8)) * scale;
+    float s010 = float(getVoxel((voxelInt + ivec3(0,1,0))%8, brickInt + (voxelInt + ivec3(0,1,0))/8)) * scale;
+    float s110 = float(getVoxel((voxelInt + ivec3(1,1,0))%8, brickInt + (voxelInt + ivec3(1,1,0))/8)) * scale;
+    float s001 = float(getVoxel((voxelInt + ivec3(0,0,1))%8, brickInt + (voxelInt + ivec3(0,0,1))/8)) * scale;
+    float s101 = float(getVoxel((voxelInt + ivec3(1,0,1))%8, brickInt + (voxelInt + ivec3(1,0,1))/8)) * scale;
+    float s011 = float(getVoxel((voxelInt + ivec3(0,1,1))%8, brickInt + (voxelInt + ivec3(0,1,1))/8)) * scale;
+    float s111 = float(getVoxel((voxelInt + ivec3(1,1,1))%8, brickInt + (voxelInt + ivec3(1,1,1))/8)) * scale;
+
+    // Computing coefficients
+    float a  = s101 - s001;
+    float k1 = s100 - s000;
+    float k2 = s010 - s000;
+    float k3 = s110 - s010 - k1;
+    float k4 = s000 - s001;
+    float k5 = k1 - a;
+    float k6 = k2 - (s011 - s001);
+    float k7 = k3 - (s111 - s011 - a);
+
+    float m0 = localOrigin.x * localOrigin.y;
+    float m1 = localDir.x * localDir.y;
+    float m2 = localOrigin.x * localDir.y + localOrigin.y * localDir.x;
+    float m3 = k5*localOrigin.z - k1;
+    float m4 = k6*localOrigin.z - k2;
+    float m5 = k7*localOrigin.z - k3;
+
+    // Cubic coefficients f(t) = c3*t^3 + c2*t^2 + c1*t + c0
+    float c0 = (k4*localOrigin.z - s000) + localOrigin.x*m3 + localOrigin.y*m4 + m0*m5;
+    float c1 = localDir.x*m3 + localDir.y*m4 + m2*m5 +
+               localDir.z*(k4 + k5*localOrigin.x + k6*localOrigin.y + k7*m0);
+    float c2 = m1*m5 + localDir.z*(k5*localDir.x + k6*localDir.y + k7*m2);
+    float c3 = k7*m1*localDir.z;
+
+    vec4 c = vec4(c0, c1, c2, c3);
+
+    // Evaluate endpoints in 0 and 1
+    float f0 = c0;
+    float f1 = c0 + c1 + c2 + c3;
+
+    // critical cases
+    // please note that t is exact in these cases
+    float tIntersect;
+    if (abs(c3) < 1e-6) {
+        if (abs(c2) < 1e-6) {
+            if (abs(c1) < 1e-6) {
+                if (abs(c0) < 1e-6) tIntersect = c0;
+                else return vec4(0.);
+            }
+            float t = -c0 / c1;
+            if (t >= 0. && t <= 1.) tIntersect = t;
+            else return vec4(0.);
+        }
+        else {
+            float d = c1*c1 - 4.*c2*c0;
+            if (d < 0.) return vec4(0.);
+            float t1 = (-c1 - sqrt(d))/(2.*c2);
+            if (t1>=0. && t1<=1.) tIntersect = t1;
+            else {
+                float t2 = (-c1 + sqrt(d))/(2.*c2);
+                if (t2>=0. && t2<=1.) tIntersect = t2;
+                else return vec4(0.);
+            }
+        }
+    }
+    // normal cases
+    else {
+        // Find a bracket [ta, tb] that crosses 0
+        bool hasRoot = false;
+        float ta,tb;
+        float tArray[4];
+        int count = 0;
+
+        tArray[count++] = 0.;
+
+        float delta = 4.*c2*c2 + 12.*c3*c1;
+        if (delta >= 0.) {
+            float s = sqrt(delta);
+            float t1 = (-c1-s)/(2.*c2);
+            float t2 = (-c1+s)/(2.*c2);
+            float t1Ordered = min(t1, t2);
+            float t2Ordered = max(t1, t2);
+            if (t1Ordered>0. && t1Ordered<1.) tArray[count++] = t1Ordered;
+            if (t2Ordered>0. && t2Ordered<1.) tArray[count++] = t2Ordered;
+        }
+        tArray[count++] = 1.;
+
+        for(int i = 0; i < count-1; i++) {
+            float a = tArray[i];
+            float b = tArray[i+1];
+
+            float fa = poly3(c, a);
+            float fb = poly3(c, b);
+
+            if (signDiff(fa, fb)) {
+                ta = a;
+                tb = b;
+                hasRoot = true;
+                break;
+            }
+        }
+        // if none -> no solutions
+        if (!hasRoot) return vec4(0.);
+
+        // if one -> determine solution with Newton's method
+        float t = 0.5 * (ta + tb); // starting point
+        vec3 d = vec3(3.0*c3, 2.0*c2, c1);
+
+        for (int i = 0; i < newtonNMax; i++) {
+            float f = poly3(c, t);
+            float df = poly2(d, t);
+
+            float tNew;
+            if (abs(df) > 1e-6) {
+                tNew = t - f/df;
+                if (tNew < ta || tNew > tb) {
+                    tNew = 0.5 * (ta + tb);
+                }
+            } else {
+                tNew = 0.5 * (ta + tb);
+            }
+
+            float fNew = poly3(c, tNew);
+
+            if (fNew > 0.0)
+                tb = tNew;
+            else
+                ta = tNew;
+
+            t = tNew;
+        }
+        tIntersect = t;
+    }
+    /*if (mode == 1) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
+    if (mode == 2) return vec4(voxel/float(n), 1.);
+    if (mode == 3) {
+        vec4 color = computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
+        return vec4(vec3((dot(color.xyz, lightDir)+1.)/2.), 1.0);
+    }*/
+    return vec4(vec3(tIntersect), 1.);
 }
 
 void main() {
@@ -97,7 +266,7 @@ void main() {
         }
         float tNext = min(tMax.x, min(tMax.y, tMax.z));
         if (getBrick(ivec3(currentBrick))) {
-            //float tVoxel = 0.;
+            float tVoxel = 0.;
             vec3 localOrigin = (position - startPoint - currentBrick*brickSize) / voxelSize;
             vec3 localPos = localOrigin + t * (ray / voxelSize);
             vec3 currentVoxel = floor(localPos + 1e-4*ray);
@@ -108,31 +277,33 @@ void main() {
                 if(!inBrickBoundaries(currentVoxel)) {
                     break;
                 }
-                if (getVoxel(ivec3(currentVoxel), ivec3(currentBrick))) {
-                    finalColor = vec4(1., 1., 1., 1.);
+                float tNext = min(tMax.x + tMaxVoxel.x, min(tMax.y + tMaxVoxel.y, tMax.z + tMaxVoxel.y));
+                vec4 color = intersectVoxel(currentVoxel, currentBrick, position + ray*(t + tVoxel), ray, tNext - t+tVoxel);
+                if (color.w!=0.) {
+                    finalColor = color;
                     return;
                 }
                 if(tMaxVoxel.x < tMaxVoxel.y) {
                     if(tMaxVoxel.x < tMaxVoxel.z) {
                         currentVoxel.x += stepVect.x;
-                        //tVoxel = tMaxVoxel.x;
+                        tVoxel = tMaxVoxel.x;
                         tMaxVoxel.x += tDeltaVoxel.x;
                     }
                     else {
                         currentVoxel.z += stepVect.z;
-                        //tVoxel = tMaxVoxel.z;
+                        tVoxel = tMaxVoxel.z;
                         tMaxVoxel.z += tDeltaVoxel.z;
                     }
                 }
                 else {
                     if(tMaxVoxel.y < tMaxVoxel.z) {
                         currentVoxel.y += stepVect.y;
-                        //tVoxel = tMaxVoxel.y;
+                        tVoxel = tMaxVoxel.y;
                         tMaxVoxel.y += tDeltaVoxel.y;
                     }
                     else {
                         currentVoxel.z += stepVect.z;
-                        //tVoxel = tMaxVoxel.z;
+                        tVoxel = tMaxVoxel.z;
                         tMaxVoxel.z += tDeltaVoxel.z;
                     }
                 }
@@ -164,6 +335,6 @@ void main() {
         }
     }
 
-    finalColor = vec4(1., 0., 0., 1.0);
+    finalColor = vec4(0., 0., 0., 1.0);
     return;
 }
