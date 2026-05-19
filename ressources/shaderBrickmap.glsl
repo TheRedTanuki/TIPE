@@ -72,6 +72,36 @@ float lerp(float x, float a, float b) {
     return a + x*(b-a);
 }
 
+vec4 computeNormal(
+    float s000,
+    float s100,
+    float s010,
+    float s110,
+    float s001,
+    float s101,
+    float s011,
+    float s111,
+    float t,
+    vec3 rayDir
+    ) {
+    float x = rayDir.x*t;
+    float y = rayDir.y*t;
+    float z = rayDir.z*t;
+
+    float y0 = lerp(y, s100 - s000, s110 - s010);
+    float y1 = lerp(y, s101 - s001, s111 - s011);
+    float dx = lerp(z, y0, y1);
+
+    float x0 = lerp(x, s010 - s000, s110 - s100);
+    float x1 = lerp(x, s011 - s001, s111 - s101);
+    float dy = lerp(z, x0, x1);
+
+    x0 = lerp(x, s001 - s000, s101 - s100);
+    x1 = lerp(x, s011 - s010, s111 - s110);
+    float dz = lerp(y, x0, x1);
+    return vec4(normalize(vec3(dx, dy, dz)), 1.);
+}
+
 vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float tSegment) {
     float voxelSize = brickSize/8.;
     ivec3 voxelInt = ivec3(voxel);
@@ -216,12 +246,12 @@ vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float t
         }
         tIntersect = t;
     }
-    /*if (mode == 1) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
-    if (mode == 2) return vec4(voxel/float(n), 1.);
+    if (mode == 1) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
+    if (mode == 2) return vec4((voxel+brick*8.)/float(nBrick*8.), 1.);
     if (mode == 3) {
         vec4 color = computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
         return vec4(vec3((dot(color.xyz, lightDir)+1.)/2.), 1.0);
-    }*/
+    }
     return vec4(vec3(tIntersect), 1.);
 }
 
