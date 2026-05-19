@@ -28,8 +28,9 @@ bool inBoundaries(vec3 pos) {
     return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(nBrick))));
 }
 
-bool inBrickBoundaries(vec3 localPos) {
-    return all(greaterThanEqual(localPos, vec3 (0.))) && all(lessThan(localPos, vec3 (8.)));
+bool inBrickBoundaries(vec3 localPos, vec3 brickPos) {
+    vec3 boundaries = vec3(8.)+min(vec3(float(nBrick)-2.)-brickPos, vec3(0.)); // On all axis : if last brick 7, else 8
+    return all(greaterThanEqual(localPos, vec3 (0.))) && all(lessThan(localPos, boundaries));
 }
 
 uint getBrickValue(ivec3 pos) {
@@ -40,12 +41,12 @@ bool getBrick(ivec3 pos) {
     return getBrickValue(pos)>>31!=0;
 }
 
-uint getValue(uint offset, ivec3 localPos) {
+int getValue(uint offset, ivec3 localPos) {
     uint index = localPos.x + 8*localPos.y + 8*8*localPos.z;
-    return ((data[(offset)*128 + index/4] >> (index%4)*8) & uint(255));
+    return int((data[(offset)*128 + index/4] >> (index%4)*8) & uint(255))-127;
 }
 
-float getVoxel(ivec3 voxel, ivec3 brick) {
+int getVoxel(ivec3 voxel, ivec3 brick) {
     uint res = getBrickValue(brick);
     if (res>>31 != 0) {
         uint offset = res&uint(((1<<31) - 1));
@@ -274,11 +275,11 @@ void main() {
             vec3 tMaxVoxel = (nextVoxelBoundary - localOrigin)*invRay*8.;
             vec3 tDeltaVoxel = abs(invRay*8.);
             for(int i = 0; i<24; i++) {
-                if(!inBrickBoundaries(currentVoxel)) {
+                if(!inBrickBoundaries(currentVoxel, currentBrick)) {
                     break;
                 }
-                float tNext = min(tMax.x + tMaxVoxel.x, min(tMax.y + tMaxVoxel.y, tMax.z + tMaxVoxel.y));
-                vec4 color = intersectVoxel(currentVoxel, currentBrick, position + ray*(t + tVoxel), ray, tNext - t+tVoxel);
+                float tNext = min(tMaxVoxel.x, min(tMaxVoxel.y, tMaxVoxel.y));
+                vec4 color = intersectVoxel(currentVoxel, currentBrick, position + ray*(t + tVoxel), ray, tNext - (t + tVoxel));
                 if (color.w!=0.) {
                     finalColor = color;
                     return;
@@ -335,6 +336,6 @@ void main() {
         }
     }
 
-    finalColor = vec4(0., 0., 0., 1.0);
+    finalColor = vec4(0., 0., 0., 1.);
     return;
 }

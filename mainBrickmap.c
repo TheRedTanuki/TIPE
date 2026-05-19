@@ -38,7 +38,7 @@ Vector3 quatToVect3(Quaternion q) {
 
 double sdf(Vector3 pos, Vector2 t) {
   Vector2 q = (Vector2){Vector2Length((Vector2){pos.x, pos.z})-t.x, pos.y};
-  return Vector2Length(q)-t.x;
+  return Vector2Length(q)-t.y;
 }
 
 void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick, double time) {
