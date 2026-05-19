@@ -266,8 +266,8 @@ void main() {
     vec3 stepVect = sign(ray);
     vec3 currentVoxel = floor((pos-startPoint)/voxelSize + ray*1e-4);
 
-    vec3 nextVoxelBoundary = (currentVoxel + max(stepVect, vec3(0.0)))*voxelSize + startPoint;
-    vec3 tMax = (nextVoxelBoundary-position)*invRay;
+    vec3 nextVoxelBoundary = (currentVoxel + max(stepVect, vec3(0.)))*voxelSize + startPoint;
+    vec3 tMax = (nextVoxelBoundary-position)*invRay*voxelSize;
     vec3 tDelta = abs(invRay)*voxelSize;
 
     for(int i = 0; i<256; i++) {

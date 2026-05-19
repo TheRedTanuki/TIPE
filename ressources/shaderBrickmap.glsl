@@ -243,6 +243,7 @@ void main() {
     vec3 tmin3 = min(t0, t1);
     vec3 tmax3 = max(t0, t1);
 
+
     float tmin = max(max(tmin3.x, tmin3.y), tmin3.z);
     float tmax = min(min(tmax3.x, tmax3.y), tmax3.z);
 
@@ -258,29 +259,30 @@ void main() {
     vec3 currentBrick = floor((pos-startPoint)/brickSize + ray*1e-4);
 
     vec3 nextBrickBoundary = (currentBrick + max(stepVect, vec3(0.0)))*brickSize + startPoint;
-    vec3 tMax = (nextBrickBoundary-position)*invRay;
-    vec3 tDelta = abs(invRay)*brickSize;
+    vec3 tMaxBrick = (nextBrickBoundary-position)*invRay;
+    vec3 tDeltaBrick = abs(invRay)*brickSize;
 
     for(int i = 0; i<256; i++) {
         if(!inBoundaries(currentBrick)) {
             break;
         }
-        float tNext = min(tMax.x, min(tMax.y, tMax.z));
-        if (getBrick(ivec3(currentBrick))) {
+        if(getBrick(ivec3(currentBrick))) {
             float tVoxel = 0.;
-            vec3 localOrigin = (position - startPoint - currentBrick*brickSize) / voxelSize;
-            vec3 localPos = localOrigin + t * (ray / voxelSize);
-            vec3 currentVoxel = floor(localPos + 1e-4*ray);
-            vec3 nextVoxelBoundary = currentVoxel + max(stepVect, vec3(0.0));
-            vec3 tMaxVoxel = (nextVoxelBoundary - localOrigin)*invRay*8.;
-            vec3 tDeltaVoxel = abs(invRay*8.);
-            for(int i = 0; i<24; i++) {
+            vec3 localOrigin = currentBrick*brickSize + startPoint;
+            vec3 localPos = position + t*ray - localOrigin;
+            vec3 currentVoxel = floor((localPos)/voxelSize + ray*1e-4);
+
+            vec3 nextVoxelBoundary = (currentVoxel + max(stepVect, vec3(0.)))*voxelSize;
+            vec3 tMaxVoxel = (nextVoxelBoundary-localPos)*invRay;
+            vec3 tDeltaVoxel = abs(invRay)*voxelSize;
+
+            for(int j = 0; j<24; j++) {
                 if(!inBrickBoundaries(currentVoxel, currentBrick)) {
                     break;
                 }
-                float tNext = min(tMaxVoxel.x, min(tMaxVoxel.y, tMaxVoxel.y));
-                vec4 color = intersectVoxel(currentVoxel, currentBrick, position + ray*(t + tVoxel), ray, tNext - (t + tVoxel));
-                if (color.w!=0.) {
+                float tNext = min(tMaxVoxel.x, min(tMaxVoxel.y, tMaxVoxel.z));
+                vec4 color = intersectVoxel(currentVoxel, currentBrick, position + ray*(t+tVoxel), ray, tNext - tVoxel);
+                if(color!=vec4(0.)) {
                     finalColor = color;
                     return;
                 }
@@ -309,33 +311,33 @@ void main() {
                     }
                 }
             }
+
         }
-        if(tMax.x < tMax.y) {
-            if(tMax.x < tMax.z) {
+        if(tMaxBrick.x < tMaxBrick.y) {
+            if(tMaxBrick.x < tMaxBrick.z) {
                 currentBrick.x += stepVect.x;
-                t = tMax.x;
-                tMax.x += tDelta.x;
+                t = tMaxBrick.x;
+                tMaxBrick.x += tDeltaBrick.x;
             }
             else {
                 currentBrick.z += stepVect.z;
-                t = tMax.z;
-                tMax.z += tDelta.z;
+                t = tMaxBrick.z;
+                tMaxBrick.z += tDeltaBrick.z;
             }
         }
         else {
-            if(tMax.y < tMax.z) {
+            if(tMaxBrick.y < tMaxBrick.z) {
                 currentBrick.y += stepVect.y;
-                t = tMax.y;
-                tMax.y += tDelta.y;
+                t = tMaxBrick.y;
+                tMaxBrick.y += tDeltaBrick.y;
             }
             else {
                 currentBrick.z += stepVect.z;
-                t = tMax.z;
-                tMax.z += tDelta.z;
+                t = tMaxBrick.z;
+                tMaxBrick.z += tDeltaBrick.z;
             }
         }
     }
-
     finalColor = vec4(0., 0., 0., 1.);
     return;
 }
