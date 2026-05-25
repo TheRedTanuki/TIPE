@@ -53,7 +53,7 @@ void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick
 					for(int y = 0; y<8; y++) {
 						for(int z = 0; z<8; z++) {
 							int index = x+8*y+8*8*z;
-							double movingCenter = (nBrick*8-1+sin(time*0.5)*5)/2.;
+							double movingCenter = (nBrick*8-1+10.*sin(time*0.5))/2.;
 							double c = (nBrick*8-1)/2.;
 							Vector3 pos = (Vector3){(double)(x+8*i)-movingCenter, (double)(y+8*j)-c, (double)(z+8*k)-c};
 							double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(2))*127;
@@ -155,8 +155,8 @@ int main ()
 	{
 		if (updateEnabled) {
 			updateBufferBrickMap(bricksArray, dataArray, nBrick, GetTime());
-			int bricksArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
-			int dataArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*128*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
+			rlUpdateShaderBuffer(bricksArraySsbo, bricksArray, nBrick*nBrick*nBrick*sizeof(uint32_t), 0);
+			rlUpdateShaderBuffer(dataArraySsbo, dataArray, nBrick*nBrick*nBrick*128*sizeof(uint32_t), 0);
 		}
 		Vector2 delta = GetMouseDelta();
 		pitch -= (double)delta.y*GetFrameTime()*0.5;

@@ -57,23 +57,23 @@ vec4 computeNormal(
     float t,
     vec3 rayDir
     ) {
-        float x = rayDir.x*t;
-        float y = rayDir.y*t;
-        float z = rayDir.z*t;
+    float x = rayDir.x*t;
+    float y = rayDir.y*t;
+    float z = rayDir.z*t;
 
-        float y0 = lerp(y, s100 - s000, s110 - s010);
-        float y1 = lerp(y, s101 - s001, s111 - s011);
-        float dx = lerp(z, y0, y1);
+    float y0 = lerp(y, s100 - s000, s110 - s010);
+    float y1 = lerp(y, s101 - s001, s111 - s011);
+    float dx = lerp(z, y0, y1);
 
-        float x0 = lerp(x, s010 - s000, s110 - s100);
-        float x1 = lerp(x, s011 - s001, s111 - s101);
-        float dy = lerp(z, x0, x1);
+    float x0 = lerp(x, s010 - s000, s110 - s100);
+    float x1 = lerp(x, s011 - s001, s111 - s101);
+    float dy = lerp(z, x0, x1);
 
-        x0 = lerp(x, s001 - s000, s101 - s100);
-        x1 = lerp(x, s011 - s010, s111 - s110);
-        float dz = lerp(y, x0, x1);
-        return vec4(normalize(vec3(dx, dy, dz)), 1.);
-    }
+    x0 = lerp(x, s001 - s000, s101 - s100);
+    x1 = lerp(x, s011 - s010, s111 - s110);
+    float dz = lerp(y, x0, x1);
+    return vec4(normalize(vec3(dx, dy, dz)), 1.);
+}
 
 vec4 intersectVoxel(vec3 voxel, vec3 rayOrigin, vec3 rayDir, float tSegment) {
     ivec3 voxelInt = ivec3(voxel);
