@@ -41,9 +41,10 @@ double sdf(Vector3 pos, Vector2 t) {
   return Vector2Length(q)-t.y;
 }
 
-void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick, double time) {
+int updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick, double time) {
 	uint32_t* tempBrick = calloc(128, sizeof(int32_t));
 	uint32_t indice = 0;
+	int dataArraySize = 0;
 	for(int i = 0; i<nBrick; i++) {
 		for(int j = 0; j<nBrick; j++) {
 			for(int k = 0; k<nBrick; k++) {
@@ -84,12 +85,14 @@ void updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick
 					for(int a = 0; a<128; a++) {
 						dataArray[128*indice+a] = tempBrick[a];
 					}
+					dataArraySize += 1;
 					indice++;
 				}
 			}	
 		}	
 	}
 	free(tempBrick);
+	return 128*dataArraySize;
 }
 
 int main ()
@@ -122,11 +125,11 @@ int main ()
 	int n = 32;
 	int nBrick = 4;
 	uint32_t* bricksArray = malloc(nBrick*nBrick*nBrick*sizeof(uint32_t));
-	uint32_t* dataArray = malloc(nBrick*nBrick*nBrick*128*sizeof(uint32_t)); // TODO : find a way to reduce it before it's creation
-	updateBufferBrickMap(bricksArray, dataArray, nBrick, GetTime());
+	uint32_t* dataArray = malloc(nBrick*nBrick*nBrick*128*sizeof(uint32_t));
+	int dataArraySize = updateBufferBrickMap(bricksArray, dataArray, nBrick, GetTime());
 
 	int bricksArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
-	int dataArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*128*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
+	int dataArraySsbo = rlLoadShaderBuffer(dataArraySize*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
 
 	rlBindShaderBuffer(bricksArraySsbo, 0);
 	rlBindShaderBuffer(dataArraySsbo, 1);
@@ -154,9 +157,9 @@ int main ()
 	while (!WindowShouldClose())
 	{
 		if (updateEnabled) {
-			updateBufferBrickMap(bricksArray, dataArray, nBrick, GetTime());
+			dataArraySize = updateBufferBrickMap(bricksArray, dataArray, nBrick, GetTime());
 			rlUpdateShaderBuffer(bricksArraySsbo, bricksArray, nBrick*nBrick*nBrick*sizeof(uint32_t), 0);
-			rlUpdateShaderBuffer(dataArraySsbo, dataArray, nBrick*nBrick*nBrick*128*sizeof(uint32_t), 0);
+			rlUpdateShaderBuffer(dataArraySsbo, dataArray, dataArraySize*sizeof(uint32_t), 0);
 		}
 		Vector2 delta = GetMouseDelta();
 		pitch -= (double)delta.y*GetFrameTime()*0.5;
