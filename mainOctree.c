@@ -8,7 +8,11 @@
 #include <stdint.h>
 #include <rlgl.h>
 #include <raymath.h>
-// gcc mainOcttree.c -O3 -o mainOcttree -lraylib -lm -lpthread -ldl -lrt -lX11 && ./mainOcttree
+// gcc mainOctree.c -O3 -o mainOctree -lraylib -lm -lpthread -ldl -lrt -lX11 && ./mainOctree
+
+typedef struct{
+    uint32_t data;
+} Node;
 
 int intClamp(int x, int m, int M) {
 	if(x>M) return M;
@@ -41,7 +45,26 @@ double sdf(Vector3 pos, Vector2 t) {
   return Vector2Length(q)-t.y;
 }
 
-void updateBuffer(uint32_t* voxelArray, int n, double time) {
+int quickExp(int n, int p) {
+    if(p=0) return 1;
+    if(p%2==0) {
+        int temp = quickExp(n, p/2);
+        return temp*temp;
+    }
+    return n*quickExp(n, p-1);
+}
+
+void computeNode(uint32_t* octtreeBuffer, int n, int nodeSize, int x, int y, int z, int index) {
+    double c = (n-1)/2.;
+    Vector3 pos = (Vector3){(double)x-c, (double)y-c, (double)z-c};
+    double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(2))*127;
+    uint32_t val = (uint32_t)(intClamp((int)dist, -127, 127)+127);
+    int material = 0;
+    uint32_t node = val | material<<8; // other bits are used for material storing
+    octtreeBuffer[index] = node;
+}
+
+void updateBuffer(uint32_t* octtreeBuffer, int p, int n) {
 }
 
 int main ()
@@ -71,7 +94,9 @@ int main ()
 	Vector3 startPoint = (Vector3){0., 0., 0.};
 	float voxelSize = 1.;
 
-	int n = 32;
+    int p = 5;
+	int n = 1<<p;
+    int32_t octtreeBuffer = malloc(quickExp(8, p)*sizeof(int32_t));
 	
 	bool updateEnabled = false;
 	int mode = 0;
