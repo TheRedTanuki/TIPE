@@ -9,15 +9,13 @@
 #include <rlgl.h>
 #include <raymath.h>
 
-#define nullptr ((void*)0)
-
 // gcc mainOctree.c -O3 -o mainOctree -lraylib -lm -lpthread -ldl -lrt -lX11 && ./mainOctree
 
-typedef struct{
+typedef struct Node{
     uint8_t cache;
 	uint8_t data;
 	bool isLeaf;
-	Node* children[8];
+	struct Node* children[8];
 } Node;
 
 int intClamp(int x, int m, int M) {
@@ -52,7 +50,7 @@ double sdf(Vector3 pos, Vector2 t) {
 }
 
 int quickExp(int n, int p) {
-    if(p=0) return 1;
+    if(p==0) return 1;
     if(p%2==0) {
         int temp = quickExp(n, p/2);
         return temp*temp;
@@ -69,24 +67,24 @@ uint8_t computeNode(int n, int x, int y, int z) {
 }
 
 bool nodeEquality(Node* node1, Node* node2) {
-	return node1->isLeaf==node2->isLeaf
-		&& node1->children==node2->children
-		&& node1->cache==node2->cache
-		&& node1->data==node2->data;
+	return node1->isLeaf	== node2->isLeaf
+		&& node1->cache		== node2->cache
+		&& node1->data		== node2->data;
 }
 
 Node* createOctree(int p, int n, int x, int y, int z) {
-	if(p==1) {
+	if(p==0) {
 		Node* node = malloc(sizeof(Node));
 		for(int i = 0; i<8; i++) {
-			node->children[i] = nullptr;
+			node->children[i] = NULL;
 		}
 		node->isLeaf = true;
 		node->cache=0;
 		node->data=computeNode(n, x, y, z);
+		return node;
 	}
 	else {
-		int offset = 1<<(p-1);
+		int offset = 1<<p;
 		Node* node000 = createOctree(p-1, n, x, y, z);
 		Node* node100 = createOctree(p-1, n, x+offset, y, z);
 		Node* node010 = createOctree(p-1, n, x, y+offset, z);
@@ -126,7 +124,7 @@ Node* createOctree(int p, int n, int x, int y, int z) {
 			node->children[7] = node111;
 			node->data=0;
 			node->isLeaf=false;
-			uint8_t cache = (node000->isLeaf ? true : false)
+			uint8_t cache = (node000->isLeaf ? 0x1 : 0x0)
 				| (node100->isLeaf ? 0x1 : 0x0)<<1
 				| (node010->isLeaf ? 0x1 : 0x0)<<2
 				| (node110->isLeaf ? 0x1 : 0x0)<<3
@@ -137,6 +135,24 @@ Node* createOctree(int p, int n, int x, int y, int z) {
 			return node;
 		}
 	}
+}
+
+void freeNode(Node* node) {
+    if(!node->isLeaf) {
+        for(int i = 0; i < 8; i++) {
+            freeNode(node->children[i]);
+        }
+    }
+    free(node);
+}
+
+int count(Node* node) {
+	if(node->isLeaf) return 1;
+	int sum = 0;
+	for(int i = 0; i<8; i++) {
+		sum += count(node->children[i]);
+	}
+	return sum;
 }
 
 void updateBuffer(uint32_t* octreeBuffer, int p, int n) {
@@ -150,7 +166,7 @@ int main ()
 	ToggleFullscreen();
 	float ratio = (float)GetScreenWidth()/GetScreenHeight();
 
-	Shader shader = LoadShader(0, "ressources/shaderOcttree.glsl");
+	Shader shader = LoadShader(0, "ressources/shaderOctree.glsl");
 	RenderTexture2D target = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
 
 	// Uniform locations
@@ -171,7 +187,11 @@ int main ()
 
     int p = 5;
 	int n = 1<<p;
-    int32_t octreeBuffer = malloc(quickExp(8, p)*sizeof(int32_t));
+    int32_t* octreeBuffer = malloc(quickExp(8, p)*sizeof(int32_t));
+	Node* octree = createOctree(p, n, 0, 0, 0);
+	printf("%d\n", count(octree));
+	free(octreeBuffer);
+	freeNode(octree);
 	
 	bool updateEnabled = false;
 	int mode = 0;
