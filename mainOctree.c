@@ -202,7 +202,7 @@ int count(Node* node) {
 	for(int i = 0; i<8; i++) {
 		sum += count(node->children[i]);
 	}
-	return sum;
+	return sum+1;
 }
 
 void fillBuffer(uint32_t* octreeBuffer, Node* octree, int nextAvailable) {
