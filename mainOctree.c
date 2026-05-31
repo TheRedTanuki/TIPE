@@ -18,10 +18,23 @@ typedef struct Node{
 	struct Node* children[8];
 } Node;
 
+typedef struct NodeStack{
+	Node** array;
+	int capacity;
+	int size;
+} NodeStack;
+
 int intClamp(int x, int m, int M) {
 	if(x>M) return M;
 	if(x<m) return m;
 	return x;
+}
+
+// n modulo p (returning the true positive modulo if n is negative)
+int modulo(int n, int p) {
+	int res = n%p;
+	if(res>=0) return res;
+	return res+p;
 }
 
 // Quaternion functions
@@ -146,6 +159,43 @@ void freeNode(Node* node) {
     free(node);
 }
 
+NodeStack* createNodeStack() {
+	NodeStack* s = malloc(sizeof(NodeStack));
+	s->array = malloc(sizeof(Node*));
+	s->capacity = 1;
+	s->size = 0;
+	return s;
+}
+
+void freeNodeStack(NodeStack* s) {
+	free(s->array);
+	free(s);
+}
+
+void appendNodeStack(NodeStack* s, Node* node) {
+	if(s->size==s->capacity) {
+		s->capacity *= 2;
+		void* output = realloc(s->array, s->capacity*sizeof(Node*));
+		assert(output != NULL);
+		s->array = output;
+	}
+	s->array[s->size] = node;
+	s->size += 1;
+}
+
+Node* popNodeStack(NodeStack* s) {
+	assert(s->size > 0);
+	s->size -= 1;
+	Node* result = s->array[s->size];
+	if(s->size <= s->capacity/4 && s->capacity > 1) {
+		s->capacity = s->capacity/2;
+		void* output = realloc(s->array, s->capacity*sizeof(Node*));
+		assert(output!=NULL);
+		s->array = output;		
+	}
+	return result;
+}
+
 int count(Node* node) {
 	if(node->isLeaf) return 1;
 	int sum = 0;
@@ -155,7 +205,11 @@ int count(Node* node) {
 	return sum;
 }
 
-void updateBuffer(uint32_t* octreeBuffer, int p, int n) {
+void fillBuffer(uint32_t* octreeBuffer, Node* octree, int nextAvailable) {
+}
+
+void updateBuffer(uint32_t* octreeBuffer, Node* octree, int p, int n) {
+	
 }
 
 int main ()
@@ -192,7 +246,7 @@ int main ()
 	printf("%d\n", count(octree));
 	free(octreeBuffer);
 	freeNode(octree);
-	
+
 	bool updateEnabled = false;
 	int mode = 0;
 	int modeNumber = 4;
