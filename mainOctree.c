@@ -24,6 +24,13 @@ typedef struct NodeStack{
 	int size;
 } NodeStack;
 
+typedef struct NodeQueue{
+	Node** array;
+	int capacity;
+	int start;
+	int size;
+} NodeQueue;
+
 int intClamp(int x, int m, int M) {
 	if(x>M) return M;
 	if(x<m) return m;
@@ -196,6 +203,41 @@ Node* popNodeStack(NodeStack* s) {
 	return result;
 }
 
+NodeQueue* createNodeQueue() {
+	NodeQueue* q = malloc(sizeof(NodeQueue));
+	q->array = malloc(sizeof(Node*));
+	q->capacity = 1;
+	q->start = 0;
+	q->size = 0;
+	return q;
+}
+
+void freeNodeQueue(NodeQueue* q) {
+	free(q->array);
+	free(q);
+}
+
+void appendNodeQueue(NodeQueue* q, Node* node) {
+	if(q->size == q->capacity) {
+		q->capacity *= 2;
+		void* output = realloc(q->array, q->capacity*sizeof(Node*));
+		assert(output!=NULL);
+		q->array = output;
+		for(int i = 0; i<q->start; i++) {
+			q->array[i+q->size] = q->array[i];
+		}
+	}
+	q->array[(q->start+q->size)%q->capacity] = node;
+	q->size += 1;
+}
+
+Node* popNodeQueue(NodeQueue* q) {
+	Node* result = q->array[q->start];
+	q->size -= 1;
+	q->start = (q->start+1)%q->capacity;
+	return result;
+}
+
 int count(Node* node) {
 	if(node->isLeaf) return 1;
 	int sum = 0;
@@ -205,11 +247,30 @@ int count(Node* node) {
 	return sum+1;
 }
 
-void fillBuffer(uint32_t* octreeBuffer, Node* octree, int nextAvailable) {
+void fillBuffer(uint32_t* octreeBuffer, Node* octree) {
+	NodeQueue* q = createNodeQueue();
+	appendNodeQueue(q, octree);
+	int nextAvailable = 0;
+	while(q->size != 0) {
+		Node* node = popNodeQueue(q);
+		if(node->isLeaf) {
+			uint32_t nodeInt = octree->data;
+			octreeBuffer[nextAvailable] = nodeInt;
+			nextAvailable++;
+		}
+		else {
+			uint32_t nodeInt = node->cache<<24 | nextAvailable+q->size & (1<<24 - 1);
+			for(int i = 0; i<8; i++) {
+				appendNodeQueue(q, node->children[i]);
+			}
+			octreeBuffer[nextAvailable] = nodeInt;
+			nextAvailable++;
+		}
+	}
 }
 
-void updateBuffer(uint32_t* octreeBuffer, Node* octree, int p, int n) {
-	
+void updateBuffer(uint32_t* octreeBuffer, Node* octree) {
+	fillBuffer(octreeBuffer, octree);
 }
 
 int main ()
