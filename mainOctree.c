@@ -247,7 +247,7 @@ int count(Node* node) {
 	return sum+1;
 }
 
-void fillBuffer(uint32_t* octreeBuffer, Node* octree) {
+int fillBuffer(uint32_t* octreeBuffer, Node* octree) {
 	NodeQueue* q = createNodeQueue();
 	appendNodeQueue(q, octree);
 	int nextAvailable = 0;
@@ -267,10 +267,12 @@ void fillBuffer(uint32_t* octreeBuffer, Node* octree) {
 			nextAvailable++;
 		}
 	}
+	return nextAvailable;
 }
 
-void updateBuffer(uint32_t* octreeBuffer, Node* octree) {
-	fillBuffer(octreeBuffer, octree);
+int updateBuffer(uint32_t* octreeBuffer, Node* octree) {
+	int size = fillBuffer(octreeBuffer, octree);
+	return size;
 }
 
 int main ()
@@ -304,9 +306,10 @@ int main ()
 	int n = 1<<p;
     int32_t* octreeBuffer = malloc(quickExp(8, p)*sizeof(int32_t));
 	Node* octree = createOctree(p, n, 0, 0, 0);
+	int size = updateBuffer(octreeBuffer, octree);
 	printf("%d\n", count(octree));
-	free(octreeBuffer);
-	freeNode(octree);
+	int ssboOctree = rlLoadShaderBuffer(size, octreeBuffer, RL_DYNAMIC_READ);
+	rlBindShaderBuffer(ssboOctree, 0);
 
 	bool updateEnabled = false;
 	int mode = 0;
@@ -378,5 +381,7 @@ int main ()
 
 	UnloadShader(shader);
 	CloseWindow();
+	free(octreeBuffer);
+	freeNode(octree);
 	return 0;
 }
