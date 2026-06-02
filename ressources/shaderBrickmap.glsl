@@ -25,12 +25,11 @@ layout(std430, binding = 1) buffer dataArray {
 };
 
 bool inBoundaries(vec3 pos) {
-    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(nBrick))));
+    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(nBrick)*brickSize)));
 }
 
-bool inBrickBoundaries(vec3 localPos, vec3 brickPos) {
-    vec3 boundaries = vec3(8.)+min(vec3(float(nBrick)-2.)-brickPos, vec3(0.)); // On all axis : if last brick 7, else 8
-    return all(greaterThanEqual(localPos, vec3 (0.))) && all(lessThan(localPos, boundaries));
+bool inBrickBoundaries(vec3 localPos) {
+    return all(greaterThanEqual(localPos, vec3 (0.))) && all(lessThan(localPos, vec3(8.)));
 }
 
 uint getBrickValue(ivec3 pos) {
@@ -47,6 +46,11 @@ int getValue(uint offset, ivec3 localPos) {
 }
 
 int getVoxel(ivec3 voxel, ivec3 brick) {
+    if(any(lessThan(brick, ivec3(0))) ||
+    any(greaterThanEqual(brick, ivec3(nBrick))))
+    {
+        return 127;
+    }
     uint res = getBrickValue(brick);
     if (res>>31 != 0) {
         uint offset = res&uint(((1<<31) - 1));
@@ -82,11 +86,13 @@ vec4 computeNormal(
     float s011,
     float s111,
     float t,
+    vec3 localOrigin,
+    vec3 localDir,
     vec3 rayDir
     ) {
-    float x = rayDir.x*t;
-    float y = rayDir.y*t;
-    float z = rayDir.z*t;
+    float x = localOrigin.x + localDir.x*t;
+    float y = localOrigin.y + localDir.y*t;
+    float z = localOrigin.z + localDir.z*t;
 
     float y0 = lerp(y, s100 - s000, s110 - s010);
     float y1 = lerp(y, s101 - s001, s111 - s011);
@@ -188,11 +194,11 @@ vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float t
 
         tArray[count++] = 0.;
 
-        float delta = 4.*c2*c2 + 12.*c3*c1;
+        float delta = 4.*c2*c2 - 12.*c3*c1;
         if (delta >= 0.) {
             float s = sqrt(delta);
-            float t1 = (-c1-s)/(2.*c2);
-            float t2 = (-c1+s)/(2.*c2);
+            float t1 = (-2.*c2-s)/(6.*c3);
+            float t2 = (-2.*c2+s)/(6.*c3);
             float t1Ordered = min(t1, t2);
             float t2Ordered = max(t1, t2);
             if (t1Ordered>0. && t1Ordered<1.) tArray[count++] = t1Ordered;
@@ -246,10 +252,10 @@ vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float t
         }
         tIntersect = t;
     }
-    if (mode == 1) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
+    if (mode == 1) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, localOrigin, localDir, rayDir);
     if (mode == 2) return vec4((voxel+brick*8.)/float(nBrick*8.), 1.);
     if (mode == 3) {
-        vec4 color = computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, rayDir);
+        vec4 color = computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, localOrigin, localDir, rayDir);
         return vec4(vec3((dot(color.xyz, lightDir)+1.)/2.), 1.0);
     }
     return vec4(vec3(tIntersect), 1.);
@@ -307,7 +313,7 @@ void main() {
             vec3 tDeltaVoxel = abs(invRay)*voxelSize;
 
             for(int j = 0; j<24; j++) {
-                if(!inBrickBoundaries(currentVoxel, currentBrick)) {
+                if(!inBrickBoundaries(currentVoxel)) {
                     break;
                 }
                 float tNext = min(tMaxVoxel.x, min(tMaxVoxel.y, tMaxVoxel.z));
