@@ -12,9 +12,12 @@ uniform int nBrick;
 uniform float fov = 1.;
 uniform float brickSize = 8.;
 uniform vec3 startPoint = vec3 (0., 0., 0.);
-uniform int newtonNMax = 15; // precision of t determination (increase for more precision)
+uniform int newtonNMax = 5; // precision of t determination (increase for more precision)
 uniform int mode;
 uniform vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
+
+#define voxelSize brickSize / 8.0
+#define invVoxelSize 8./brickSize
 
 layout(std430, binding = 0) buffer bricksArray {
     uint bricks[];
@@ -61,11 +64,11 @@ int getVoxel(ivec3 voxel, ivec3 brick) {
 }
 
 float poly3(vec4 c, float t) {
-    return c.w*t*t*t + c.z*t*t + c.y*t + c.x;
+    return ((c.w*t + c.z)*t + c.y)*t + c.x;
 }
 
 float poly2(vec3 c, float t) {
-    return c.z*t*t + c.y*t +c.x;
+    return (c.z*t + c.y)*t +c.x;
 }
 
 bool signDiff(float x1, float x2) {
@@ -109,25 +112,24 @@ vec4 computeNormal(
 }
 
 vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float tSegment) {
-    float voxelSize = brickSize/8.;
     ivec3 voxelInt = ivec3(voxel);
     ivec3 brickInt = ivec3(brick);
     vec3 voxelWorld = startPoint + voxel * voxelSize + brick * brickSize;
 
-    vec3 localOrigin = (rayOrigin - voxelWorld) / voxelSize;
-    vec3 localDir    = (rayDir * tSegment) / voxelSize;
+    vec3 localOrigin = (rayOrigin - voxelWorld) * invVoxelSize;
+    vec3 localDir    = (rayDir * tSegment) * invVoxelSize;
 
     float scale = sqrt(2.0)/127.0;
 
     // Trilinear interpolation coefficients
     float s000 = float(getVoxel(voxelInt, brickInt)) * scale;
-    float s100 = float(getVoxel((voxelInt + ivec3(1,0,0))%8, brickInt + (voxelInt + ivec3(1,0,0))/8)) * scale;
-    float s010 = float(getVoxel((voxelInt + ivec3(0,1,0))%8, brickInt + (voxelInt + ivec3(0,1,0))/8)) * scale;
-    float s110 = float(getVoxel((voxelInt + ivec3(1,1,0))%8, brickInt + (voxelInt + ivec3(1,1,0))/8)) * scale;
-    float s001 = float(getVoxel((voxelInt + ivec3(0,0,1))%8, brickInt + (voxelInt + ivec3(0,0,1))/8)) * scale;
-    float s101 = float(getVoxel((voxelInt + ivec3(1,0,1))%8, brickInt + (voxelInt + ivec3(1,0,1))/8)) * scale;
-    float s011 = float(getVoxel((voxelInt + ivec3(0,1,1))%8, brickInt + (voxelInt + ivec3(0,1,1))/8)) * scale;
-    float s111 = float(getVoxel((voxelInt + ivec3(1,1,1))%8, brickInt + (voxelInt + ivec3(1,1,1))/8)) * scale;
+    float s100 = float(getVoxel((voxelInt + ivec3(1,0,0))&7, brickInt + ((voxelInt + ivec3(1,0,0))>>3))) * scale;
+    float s010 = float(getVoxel((voxelInt + ivec3(0,1,0))&7, brickInt + ((voxelInt + ivec3(0,1,0))>>3))) * scale;
+    float s110 = float(getVoxel((voxelInt + ivec3(1,1,0))&7, brickInt + ((voxelInt + ivec3(1,1,0))>>3))) * scale;
+    float s001 = float(getVoxel((voxelInt + ivec3(0,0,1))&7, brickInt + ((voxelInt + ivec3(0,0,1))>>3))) * scale;
+    float s101 = float(getVoxel((voxelInt + ivec3(1,0,1))&7, brickInt + ((voxelInt + ivec3(1,0,1))>>3))) * scale;
+    float s011 = float(getVoxel((voxelInt + ivec3(0,1,1))&7, brickInt + ((voxelInt + ivec3(0,1,1))>>3))) * scale;
+    float s111 = float(getVoxel((voxelInt + ivec3(1,1,1))&7, brickInt + ((voxelInt + ivec3(1,1,1))>>3))) * scale;
 
     // Computing coefficients
     float a  = s101 - s001;
@@ -263,7 +265,6 @@ vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float t
 
 void main() {
     vec3 endPoint = startPoint+vec3((nBrick)*brickSize);
-    float voxelSize = brickSize / 8.0;
     vec2 uv = fragTexCoord;
     uv *= 2.0;
     uv -= 1.;
@@ -306,7 +307,7 @@ void main() {
             float tVoxel = 0.;
             vec3 localOrigin = currentBrick*brickSize + startPoint;
             vec3 localPos = position + t*ray - localOrigin;
-            vec3 currentVoxel = floor((localPos)/voxelSize + ray*1e-4);
+            vec3 currentVoxel = floor((localPos) * invVoxelSize + ray*1e-4);
 
             vec3 nextVoxelBoundary = (currentVoxel + max(stepVect, vec3(0.)))*voxelSize;
             vec3 tMaxVoxel = (nextVoxelBoundary-localPos)*invRay;
