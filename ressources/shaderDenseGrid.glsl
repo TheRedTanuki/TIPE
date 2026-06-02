@@ -12,7 +12,7 @@ uniform int n;
 uniform float fov = 1.;
 uniform float voxelSize = 1.;
 uniform vec3 startPoint = vec3 (0., 0., 0.);
-uniform int newtonNMax = 15; // precision of t determination (increase for more precision)
+uniform int newtonNMax = 5; // precision of t determination (increase for more precision)
 uniform int mode;
 uniform vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
 
@@ -30,11 +30,11 @@ int getValue(ivec3 coord) {
 }
 
 float poly3(vec4 c, float t) {
-    return c.w*t*t*t + c.z*t*t + c.y*t + c.x;
+    return ((c.w*t + c.z)*t + c.y)*t + c.x;
 }
 
 float poly2(vec3 c, float t) {
-    return c.z*t*t + c.y*t +c.x;
+    return (c.z*t + c.y)*t +c.x;
 }
 
 bool signDiff(float x1, float x2) {
@@ -159,11 +159,11 @@ vec4 intersectVoxel(vec3 voxel, vec3 rayOrigin, vec3 rayDir, float tSegment) {
 
         tArray[count++] = 0.;
 
-        float delta = 4.*c2*c2 + 12.*c3*c1;
+        float delta = 4.*c2*c2 - 12.*c3*c1;
         if (delta >= 0.) {
             float s = sqrt(delta);
-            float t1 = (-c1-s)/(2.*c2);
-            float t2 = (-c1+s)/(2.*c2);
+            float t1 = (-2.*c2-s)/(6.*c3);
+            float t2 = (-2.*c2+s)/(6.*c3);
             float t1Ordered = min(t1, t2);
             float t2Ordered = max(t1, t2);
             if (t1Ordered>0. && t1Ordered<1.) tArray[count++] = t1Ordered;

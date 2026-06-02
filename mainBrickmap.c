@@ -97,6 +97,7 @@ int updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick,
 
 int main ()
 {
+	FILE* data = fopen("data/brickmap.txt", "w");
 	SetConfigFlags(FLAG_WINDOW_HIGHDPI);
 	InitWindow(1280, 800, "Test");
 	
@@ -120,7 +121,10 @@ int main ()
 
 	float fov = 1.2;
 	Vector3 startPoint = (Vector3){0., 0., 0.};
-	float brickSize = 1.;
+	float brickSize = 8.;
+
+	int sampleFrameNumber = 1000;
+	int circleRadius = 16.;
 
 	int n = 32;
 	int nBrick = 4;
@@ -134,25 +138,32 @@ int main ()
 	rlBindShaderBuffer(bricksArraySsbo, 0);
 	rlBindShaderBuffer(dataArraySsbo, 1);
 	bool updateEnabled = false;
-	int mode = 0;
+	int mode = 3;
 	int modeNumber = 4;
+
+	SetShaderValue(shader, modeLoc, &mode, SHADER_UNIFORM_INT);
 
 	SetShaderValue(shader, nBrickLoc, &nBrick, SHADER_UNIFORM_INT);
 	SetShaderValue(shader, fovLoc, &fov, SHADER_UNIFORM_FLOAT);
 	SetShaderValue(shader, startPointLoc, &startPoint, SHADER_UNIFORM_VEC3);
 	SetShaderValue(shader, brickSizeLoc, &brickSize, SHADER_UNIFORM_FLOAT);
 
-	Vector3 pos = {-1., -1., -1.};
+	Vector3 pos = {16., 0., 16.};
 	Quaternion forward = {0., 1., 0., 0.};
 	Quaternion right = {0., 0., 1., 0.};
 	Quaternion up = {0., 0., 0., 1.};
 	
 	DisableCursor();
 
+	int frameNumber = 0;
+	int blankFrame = 25;
+	double angle = 0.;
+
 	double pitch = 0.0;
-	double yaw = 0.0;
+	double yaw = -PI/2.;
 	double roll = 0.0;
-	SetTargetFPS(600);
+
+	SetTargetFPS(2000);
 
 	while (!WindowShouldClose())
 	{
@@ -162,9 +173,21 @@ int main ()
 			rlUpdateShaderBuffer(dataArraySsbo, dataArray, dataArraySize*sizeof(uint32_t), 0);
 		}
 		Vector2 delta = GetMouseDelta();
-		pitch -= (double)delta.y*GetFrameTime()*0.5;
-		yaw -= (double)delta.x*GetFrameTime()*0.5;
+		//pitch -= (double)delta.y*GetFrameTime()*0.5;
+		//yaw -= (double)delta.x*GetFrameTime()*0.5;
 		//roll += 0.02*((IsKeyDown(KEY_Q) ? 1 : 0) + (IsKeyDown(KEY_E) ? -1 : 0));
+
+		pos = (Vector3){16. + circleRadius*sin(angle), 16. + circleRadius*cos(angle), 16.};
+		yaw = angle+PI/2.;
+		frameNumber++;
+		angle = 2.*PI*(frameNumber-blankFrame)/sampleFrameNumber;
+		if(frameNumber >= blankFrame) { // prevent the overload of the first frames
+			char str[20];
+			sprintf(str, "%lf\n", GetFrameTime());
+			fwrite(str, 9, 1, data);
+		}
+
+		if(angle==2.*PI) break;
 
 		Quaternion rQuat = QuaternionMultiply(rotationQuat((Quaternion){0., 0., 0., 1.}, yaw), QuaternionMultiply(rotationQuat((Quaternion){0., 0., 1., 0.}, pitch), rotationQuat((Quaternion){0., 1., 0., 0.}, roll)));
 		forward = rotateQuat((Quaternion){0., 1., 0., 0.}, rQuat);
