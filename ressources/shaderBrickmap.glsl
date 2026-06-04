@@ -28,11 +28,16 @@ layout(std430, binding = 1) buffer dataArray {
 };
 
 bool inBoundaries(vec3 pos) {
-    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(nBrick)*brickSize)));
+    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(nBrick))));
 }
 
-bool inBrickBoundaries(vec3 localPos) {
-    return all(greaterThanEqual(localPos, vec3 (0.))) && all(lessThan(localPos, vec3(8.)));
+bool inBrickBoundaries(vec3 voxelPos, vec3 brickPos) {
+    ivec3 b = ivec3(brickPos);
+    ivec3 boundary;
+    boundary.x = b.x==nBrick-1 ? 7 : 8;
+    boundary.y = b.y==nBrick-1 ? 7 : 8;
+    boundary.z = b.z==nBrick-1 ? 7 : 8;
+    return all(greaterThanEqual(ivec3(voxelPos), ivec3 (0))) && all(lessThan(ivec3(voxelPos), boundary));
 }
 
 uint getBrickValue(ivec3 pos) {
@@ -49,11 +54,6 @@ int getValue(uint offset, ivec3 localPos) {
 }
 
 int getVoxel(ivec3 voxel, ivec3 brick) {
-    if(any(lessThan(brick, ivec3(0))) ||
-    any(greaterThanEqual(brick, ivec3(nBrick))))
-    {
-        return 127;
-    }
     uint res = getBrickValue(brick);
     if (res>>31 != 0) {
         uint offset = res&uint(((1<<31) - 1));
@@ -264,7 +264,7 @@ vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float t
 }
 
 void main() {
-    vec3 endPoint = startPoint+vec3((nBrick)*brickSize);
+    vec3 endPoint = startPoint+vec3((nBrick)*brickSize-1.*voxelSize);
     vec2 uv = fragTexCoord;
     uv *= 2.0;
     uv -= 1.;
@@ -307,14 +307,14 @@ void main() {
             float tVoxel = 0.;
             vec3 localOrigin = currentBrick*brickSize + startPoint;
             vec3 localPos = position + t*ray - localOrigin;
-            vec3 currentVoxel = floor((localPos) * invVoxelSize + ray*1e-4);
+            vec3 currentVoxel = floor((localPos) * invVoxelSize + ray*1e-3);
 
             vec3 nextVoxelBoundary = (currentVoxel + max(stepVect, vec3(0.)))*voxelSize;
             vec3 tMaxVoxel = (nextVoxelBoundary-localPos)*invRay;
             vec3 tDeltaVoxel = abs(invRay)*voxelSize;
 
             for(int j = 0; j<24; j++) {
-                if(!inBrickBoundaries(currentVoxel)) {
+                if(!inBrickBoundaries(currentVoxel, currentBrick)) {
                     break;
                 }
                 float tNext = min(tMaxVoxel.x, min(tMaxVoxel.y, tMaxVoxel.z));
@@ -323,6 +323,7 @@ void main() {
                     finalColor = color;
                     return;
                 }
+
                 if(tMaxVoxel.x < tMaxVoxel.y) {
                     if(tMaxVoxel.x < tMaxVoxel.z) {
                         currentVoxel.x += stepVect.x;
