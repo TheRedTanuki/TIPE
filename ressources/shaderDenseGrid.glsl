@@ -16,7 +16,7 @@ uniform int newtonNMax = 5; // precision of t determination (increase for more p
 uniform int mode;
 uniform vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
 
-layout(std430, binding = 0) buffer MyBuffer {
+layout(std430, binding = 0) buffer dataArray {
     uint data[];
 };
 
@@ -26,7 +26,7 @@ bool inBoundaries(vec3 pos) {
 
 int getValue(ivec3 coord) {
     int index = coord.x + n*coord.y + n*n*coord.z;
-    return int((data[index/4] >> (index%4)*8) & uint(255))-127;
+    return int(data[index] & uint(255))-127;
 }
 
 float poly3(vec4 c, float t) {

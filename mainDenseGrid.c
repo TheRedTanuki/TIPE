@@ -52,12 +52,7 @@ void updateBuffer(uint32_t* voxelArray, int n, double time) {
 				Vector3 pos = (Vector3){(double)i-movingCenter, (double)j-c, (double)k-c};
 				double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(2))*127;
 				uint32_t val = (uint32_t)(intClamp((int)dist, -127, 127)+127);
-				uint32_t shift = (index % 4) * 8;
-				uint32_t mask  = 0xFFu << shift;
-
-				voxelArray[index/4] =
-					(voxelArray[index/4] & ~mask) |
-					(val << shift);
+				voxelArray[index] = val;
 			}
 		}
 	}
@@ -95,9 +90,9 @@ int main ()
 	int circleRadius = 16.;
 
 	int n = 32;
-	uint32_t* voxelArray = calloc((n*n*n-1)/4+1, sizeof(uint32_t));
+	uint32_t* voxelArray = calloc(n*n*n, sizeof(uint32_t));
 	updateBuffer(voxelArray, n, GetTime());
-	int ssbo = rlLoadShaderBuffer(((n*n*n-1)/4+1)*sizeof(uint32_t), voxelArray, RL_DYNAMIC_READ);
+	int ssbo = rlLoadShaderBuffer(n*n*n*sizeof(uint32_t), voxelArray, RL_DYNAMIC_READ);
 	rlBindShaderBuffer(ssbo, 0);
 	bool updateEnabled = false;
 	int mode = 3;
