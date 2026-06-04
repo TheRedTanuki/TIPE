@@ -94,6 +94,12 @@ vec4 intersectVoxel(vec3 voxel, vec3 rayOrigin, vec3 rayDir, float tSegment) {
     float s011 = float(getValue(voxelInt + ivec3(0,1,1))) * scale;
     float s111 = float(getValue(voxelInt + ivec3(1,1,1))) * scale;
 
+    float maxVal = max(max(max(s000, s100), max(s010, s110)), max(max(s001, s101), max(s011, s111)));
+
+    float minVal = min(min(min(s000, s100), min(s010, s110)), min(min(s001, s101), min(s011, s111)));
+
+    if(minVal>0. || maxVal<0.) return vec4(0.);
+
     // Computing coefficients
     float a  = s101 - s001;
     float k1 = s100 - s000;
