@@ -50,7 +50,7 @@ bool getBrick(ivec3 pos) {
 
 int getValue(uint offset, ivec3 localPos) {
     uint index = localPos.x + 8*localPos.y + 8*8*localPos.z;
-    return int((data[(offset)*128 + index/4] >> (index%4)*8) & uint(255))-127;
+    return int(data[(offset)*512 + index] & uint(255))-127;
 }
 
 int getVoxel(ivec3 voxel, ivec3 brick) {

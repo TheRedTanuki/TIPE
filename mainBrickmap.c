@@ -42,7 +42,7 @@ double sdf(Vector3 pos, Vector2 t) {
 }
 
 int updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick, double time) {
-	uint32_t* tempBrick = calloc(128, sizeof(int32_t));
+	uint32_t* tempBrick = malloc(512*sizeof(int32_t));
 	uint32_t indice = 0;
 	int dataArraySize = 0;
 	for(int i = 0; i<nBrick; i++) {
@@ -65,12 +65,8 @@ int updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick,
 							if(val != 254) {
 								isEmpty = false;
 							}
-							uint32_t shift = (index % 4) * 8;
-							uint32_t mask  = 0xFFu << shift;
 
-							tempBrick[index/4] =
-								(tempBrick[index/4] & ~mask) |
-								(val << shift);
+							tempBrick[index] = val;
 						}
 					}
 				}
@@ -82,8 +78,8 @@ int updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick,
 				}
 				else {
 					bricksArray[i+nBrick*j+nBrick*nBrick*k] = indice | 1<<31;
-					for(int a = 0; a<128; a++) {
-						dataArray[128*indice+a] = tempBrick[a];
+					for(int a = 0; a<512; a++) {
+						dataArray[512*indice+a] = tempBrick[a];
 					}
 					dataArraySize += 1;
 					indice++;
@@ -92,7 +88,7 @@ int updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick,
 		}	
 	}
 	free(tempBrick);
-	return 128*dataArraySize;
+	return 512*dataArraySize;
 }
 
 int main ()
@@ -129,7 +125,7 @@ int main ()
 	int n = 32;
 	int nBrick = 4;
 	uint32_t* bricksArray = malloc(nBrick*nBrick*nBrick*sizeof(uint32_t));
-	uint32_t* dataArray = malloc(nBrick*nBrick*nBrick*128*sizeof(uint32_t));
+	uint32_t* dataArray = malloc(nBrick*nBrick*nBrick*512*sizeof(uint32_t));
 	int dataArraySize = updateBufferBrickMap(bricksArray, dataArray, nBrick, GetTime());
 
 	int bricksArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
