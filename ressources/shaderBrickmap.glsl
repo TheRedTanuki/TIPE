@@ -180,7 +180,7 @@ vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float t
             s011 = c011 == brickInt ? res : float(getVoxel((voxelInt + ivec3(0,1,1))&7, c011)) * scale;
             s111 = c111 == brickInt ? res : float(getVoxel((voxelInt + ivec3(1,1,1))&7, c111)) * scale;
         }
-        else { // last case to do
+        else {
             uint offset = brickValue&uint(((1<<31) - 1));
 
             s000 = float(getValue(offset, voxelInt))* scale;

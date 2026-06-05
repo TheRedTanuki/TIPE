@@ -173,6 +173,8 @@ int main ()
 		//yaw -= (double)delta.x*GetFrameTime()*0.5;
 		//roll += 0.02*((IsKeyDown(KEY_Q) ? 1 : 0) + (IsKeyDown(KEY_E) ? -1 : 0));
 
+		if(frameNumber-blankFrame == sampleFrameNumber-1) break;
+
 		pos = (Vector3){16. + circleRadius*sin(angle), 16. + circleRadius*cos(angle), 16.};
 		yaw = angle+PI/2.;
 		frameNumber++;
@@ -182,8 +184,6 @@ int main ()
 			sprintf(str, "%lf\n", GetFrameTime());
 			fwrite(str, 9, 1, data);
 		}
-
-		if(angle==2.*PI) break;
 
 		Quaternion rQuat = QuaternionMultiply(rotationQuat((Quaternion){0., 0., 0., 1.}, yaw), QuaternionMultiply(rotationQuat((Quaternion){0., 0., 1., 0.}, pitch), rotationQuat((Quaternion){0., 1., 0., 0.}, roll)));
 		forward = rotateQuat((Quaternion){0., 1., 0., 0.}, rQuat);
