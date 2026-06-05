@@ -293,9 +293,9 @@ int main ()
 	int cameraRightLoc = GetShaderLocation(shader, "cameraRight");
 	int cameraUpLoc = GetShaderLocation(shader, "cameraUp");
 	int positionLoc = GetShaderLocation(shader, "position");
-	int nLoc = GetShaderLocation(shader, "n");
 	int startPointLoc = GetShaderLocation(shader, "startPoint");
 	int voxelSizeLoc = GetShaderLocation(shader, "voxelSize");
+	int pLoc = GetShaderLocation(shader, "p");
 	int fovLoc = GetShaderLocation(shader, "fov");
 	int modeLoc = GetShaderLocation(shader, "mode");
 
@@ -305,21 +305,22 @@ int main ()
 
     int p = 5;
 	int n = 1<<p;
-    int32_t* octreeBuffer = malloc(quickExp(8, p)*sizeof(int32_t));
+	int size = quickExp(8, p);
+    int32_t* octreeBuffer = malloc(size*sizeof(int32_t));
 	Node* octree = createOctree(p, n, 0, 0, 0);
-	int size = updateBuffer(octreeBuffer, octree);
+	int bufferSize = updateBuffer(octreeBuffer, octree);
 	printf("%d\n", count(octree));
-	int ssboOctree = rlLoadShaderBuffer(size, octreeBuffer, RL_DYNAMIC_READ);
+	int ssboOctree = rlLoadShaderBuffer(bufferSize, octreeBuffer, RL_DYNAMIC_READ);
 	rlBindShaderBuffer(ssboOctree, 0);
 
 	bool updateEnabled = false;
 	int mode = 0;
 	int modeNumber = 4;
 
-	SetShaderValue(shader, nLoc, &n, SHADER_UNIFORM_INT);
 	SetShaderValue(shader, fovLoc, &fov, SHADER_UNIFORM_FLOAT);
 	SetShaderValue(shader, startPointLoc, &startPoint, SHADER_UNIFORM_VEC3);
 	SetShaderValue(shader, voxelSizeLoc, &voxelSize, SHADER_UNIFORM_FLOAT);
+	SetShaderValue(shader, pLoc, &p, SHADER_UNIFORM_INT);
 
 	Vector3 pos = {-1., -1., -1.};
 	Quaternion forward = {0., 1., 0., 0.};

@@ -27,8 +27,8 @@ layout(std430, binding = 1) buffer dataArray {
     uint data[];
 };
 
-bool inBoundaries(vec3 pos) {
-    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(nBrick))));
+bool inBoundaries(vec3 brickPos) {
+    return all(greaterThanEqual(brickPos, vec3 (0.))) && all(lessThan(brickPos, vec3 (float(nBrick))));
 }
 
 bool inBrickBoundaries(vec3 voxelPos, vec3 brickPos) {
@@ -368,7 +368,7 @@ void main() {
     vec3 tMaxBrick = (nextBrickBoundary-position)*invRay;
     vec3 tDeltaBrick = abs(invRay)*brickSize;
 
-    for(int i = 0; i<256; i++) {
+    for(int i = 0; i<3*nBrick-1; i++) {
         if(!inBoundaries(currentBrick)) {
             break;
         }
@@ -382,7 +382,7 @@ void main() {
             vec3 tMaxVoxel = (nextVoxelBoundary-localPos)*invRay;
             vec3 tDeltaVoxel = abs(invRay)*voxelSize;
 
-            for(int j = 0; j<24; j++) {
+            for(int j = 0; j<3*8-1; j++) {
                 if(!inBrickBoundaries(currentVoxel, currentBrick)) {
                     break;
                 }
