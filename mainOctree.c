@@ -92,6 +92,15 @@ bool nodeEquality(Node* node1, Node* node2) {
 		&& node1->data		== node2->data;
 }
 
+void freeNode(Node* node) {
+    if(!node->isLeaf) {
+        for(int i = 0; i < 8; i++) {
+            freeNode(node->children[i]);
+        }
+    }
+    free(node);
+}
+
 Node* createOctree(int p, int n, int x, int y, int z) {
 	if(p==0) {
 		Node* node = malloc(sizeof(Node));
@@ -123,13 +132,13 @@ Node* createOctree(int p, int n, int x, int y, int z) {
 		&& nodeEquality(node000, node111)
 		) {
 			Node* node = node000;
-			free(node100);
-			free(node010);
-			free(node110);
-			free(node001);
-			free(node101);
-			free(node011);
-			free(node111);
+			freeNode(node100);
+			freeNode(node010);
+			freeNode(node110);
+			freeNode(node001);
+			freeNode(node101);
+			freeNode(node011);
+			freeNode(node111);
 			return node;
 		}
 		else {
@@ -155,15 +164,6 @@ Node* createOctree(int p, int n, int x, int y, int z) {
 			return node;
 		}
 	}
-}
-
-void freeNode(Node* node) {
-    if(!node->isLeaf) {
-        for(int i = 0; i < 8; i++) {
-            freeNode(node->children[i]);
-        }
-    }
-    free(node);
 }
 
 NodeStack* createNodeStack() {
@@ -259,7 +259,7 @@ int fillBuffer(uint32_t* octreeBuffer, Node* octree) {
 			nextAvailable++;
 		}
 		else {
-			uint32_t nodeInt = node->cache<<24 | nextAvailable+q->size & (1<<24 - 1);
+			uint32_t nodeInt = (uint32_t)(node->cache)<<24 | nextAvailable+q->size & (1<<24 - 1);
 			for(int i = 0; i<8; i++) {
 				appendNodeQueue(q, node->children[i]);
 			}
@@ -267,6 +267,7 @@ int fillBuffer(uint32_t* octreeBuffer, Node* octree) {
 			nextAvailable++;
 		}
 	}
+	freeNodeQueue(q);
 	return nextAvailable;
 }
 
