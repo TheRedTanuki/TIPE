@@ -121,43 +121,52 @@ vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float t
 
     float scale = sqrt(2.0)/127.0;
 
+    float s000;
+    float s100;
+    float s010;
+    float s110;
+    float s001;
+    float s101;
+    float s011;
+    float s111;
+
     // Trilinear interpolation coefficients
     // if they are all in the same brick, manually compute each call (skip 7 redundant calls to brickArray)
     if(all(lessThan(voxelInt, vec3(7)))) {
-        int brickValue = getBrickValue(brickInt);
+        uint brickValue = getBrickValue(brickInt);
         if (brickValue>>31==0) {
             int val = (((brickValue>>30)&uint(1)) !=0) ? -127 : 127;
             float res = val*scale;
-            float s000 = res;
-            float s100 = res;
-            float s010 = res;
-            float s110 = res;
-            float s001 = res;
-            float s101 = res;
-            float s011 = res;
-            float s111 = res;
+            s000 = res;
+            s100 = res;
+            s010 = res;
+            s110 = res;
+            s001 = res;
+            s101 = res;
+            s011 = res;
+            s111 = res;
         }
         else {
             uint offset = brickValue&uint(((1<<31) - 1));
-            float s000 = getValue(offset, voxelInt); * scale;
-            float s100 = float(getValue(offset, voxelInt + ivec3(1,0,0)))* scale;
-            float s010 = float(getValue(offset, voxelInt + ivec3(0,1,0)))* scale;
-            float s110 = float(getValue(offset, voxelInt + ivec3(1,1,0)))* scale;
-            float s001 = float(getValue(offset, voxelInt + ivec3(0,0,1)))* scale;
-            float s101 = float(getValue(offset, voxelInt + ivec3(1,0,1)))* scale;
-            float s011 = float(getValue(offset, voxelInt + ivec3(0,1,1)))* scale;
-            float s111 = float(getValue(offset, voxelInt + ivec3(1,1,1)))* scale;
+            s000 = float(getValue(offset, voxelInt))* scale;
+            s100 = float(getValue(offset, voxelInt + ivec3(1,0,0)))* scale;
+            s010 = float(getValue(offset, voxelInt + ivec3(0,1,0)))* scale;
+            s110 = float(getValue(offset, voxelInt + ivec3(1,1,0)))* scale;
+            s001 = float(getValue(offset, voxelInt + ivec3(0,0,1)))* scale;
+            s101 = float(getValue(offset, voxelInt + ivec3(1,0,1)))* scale;
+            s011 = float(getValue(offset, voxelInt + ivec3(0,1,1)))* scale;
+            s111 = float(getValue(offset, voxelInt + ivec3(1,1,1)))* scale;
         }
     }
     else {
-        float s000 = float(getVoxel(voxelInt, brickInt)) * scale;
-        float s100 = float(getVoxel((voxelInt + ivec3(1,0,0))&7, brickInt + ((voxelInt + ivec3(1,0,0))>>3))) * scale;
-        float s010 = float(getVoxel((voxelInt + ivec3(0,1,0))&7, brickInt + ((voxelInt + ivec3(0,1,0))>>3))) * scale;
-        float s110 = float(getVoxel((voxelInt + ivec3(1,1,0))&7, brickInt + ((voxelInt + ivec3(1,1,0))>>3))) * scale;
-        float s001 = float(getVoxel((voxelInt + ivec3(0,0,1))&7, brickInt + ((voxelInt + ivec3(0,0,1))>>3))) * scale;
-        float s101 = float(getVoxel((voxelInt + ivec3(1,0,1))&7, brickInt + ((voxelInt + ivec3(1,0,1))>>3))) * scale;
-        float s011 = float(getVoxel((voxelInt + ivec3(0,1,1))&7, brickInt + ((voxelInt + ivec3(0,1,1))>>3))) * scale;
-        float s111 = float(getVoxel((voxelInt + ivec3(1,1,1))&7, brickInt + ((voxelInt + ivec3(1,1,1))>>3))) * scale;
+        s000 = float(getVoxel(voxelInt, brickInt)) * scale;
+        s100 = float(getVoxel((voxelInt + ivec3(1,0,0))&7, brickInt + ((voxelInt + ivec3(1,0,0))>>3))) * scale;
+        s010 = float(getVoxel((voxelInt + ivec3(0,1,0))&7, brickInt + ((voxelInt + ivec3(0,1,0))>>3))) * scale;
+        s110 = float(getVoxel((voxelInt + ivec3(1,1,0))&7, brickInt + ((voxelInt + ivec3(1,1,0))>>3))) * scale;
+        s001 = float(getVoxel((voxelInt + ivec3(0,0,1))&7, brickInt + ((voxelInt + ivec3(0,0,1))>>3))) * scale;
+        s101 = float(getVoxel((voxelInt + ivec3(1,0,1))&7, brickInt + ((voxelInt + ivec3(1,0,1))>>3))) * scale;
+        s011 = float(getVoxel((voxelInt + ivec3(0,1,1))&7, brickInt + ((voxelInt + ivec3(0,1,1))>>3))) * scale;
+        s111 = float(getVoxel((voxelInt + ivec3(1,1,1))&7, brickInt + ((voxelInt + ivec3(1,1,1))>>3))) * scale;
     }
 
     float maxVal = max(max(max(s000, s100), max(s010, s110)), max(max(s001, s101), max(s011, s111)));
