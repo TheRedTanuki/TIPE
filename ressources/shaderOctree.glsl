@@ -14,7 +14,9 @@ uniform int p;
 uniform vec3 startPoint = vec3 (0., 0., 0.);
 uniform int newtonNMax = 5; // precision of t determination (increase for more precision)
 uniform int mode;
-uniform vec3 lightDir =nextNodeAddress normalize(vec3(1.0, 1.0, 1.0));
+uniform vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
+
+#define n pow(8., float(p))
 
 layout(std430, binding=0) buffer octreeBuffer {
     uint data[];
@@ -25,11 +27,15 @@ uint getCache(uint node) {
 }
 
 uint getChildAdress(uint node) {
-    return node&(uint)(1<<24-1);
+    return node & uint(1<<24-1);
+}
+
+uint getData(uint leaf) {
+    return leaf & uint(255);
 }
 
 bool inBoundaries(vec3 pos) {
-    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (float(n)*voxelSize)));
+    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (n*voxelSize)));
 }
 
 int getValue(uint adress) {
@@ -70,36 +76,75 @@ void main(){
     uint adressNextNode = 0;
 
     uint node = data[adressNextNode];
+    vec3 nodePos = startPoint;
     uint currentP = p;
-    ivec3 offsetVect = ivec3(2*.pos/(1<<currentP*voxelSize));
+    vec3 localPos = pos/voxelSize-nodePos;
+    ivec3 offsetVect = ivec3(2*localPos/(1<<currentP));
+    nodePos += offsetVect*currentP;
     uint offset = offsetVect.x + offsetVect.y*2 + offsetVect.z*4;
     uint childAdress = getChildAdress(node);
     uint cache = getCache(node);
 
     stack[p-currentP] = node;
-    bool isNextNodeLeaf = cache & uint(1<<offset) == 1;
+    bool isNextNodeLeaf = (cache & uint(1<<offset)) == 1;
     adressNextNode = childAdress + offset;
     currentP--;
 
     while(currentP < p) {
         if(isNextNodeLeaf || currentP==0) { // security - can be removed later
-            // do amanatides-woo
+            if(getValue(node)!=0 && getValue(node)!=254) {
+                finalColor = vec4(1.);
+                return;
+            }
+            vec3 nextVoxelBoundary = (nodePos + max(stepVect, vec3(0.)))*voxelSize + startPoint;
+            vec3 tMax = (nextVoxelBoundary-pos)/ray;
+            vec3 tDeltaVoxel = abs(voxelSize/ray);
+            
+            if(tMax.x < tMax.y) {
+                if(tMax.x < tMax.z) {
+                    nodePos.x += stepVect.x;
+                    t = tMax.x;
+                    tMax.x += tDeltaVoxel.x;
+                }
+                else {
+                    nodePos.z += stepVect.z;
+                    t = tMax.z;
+                    tMax.z += tDeltaVoxel.z;
+                }
+            }
+            else {
+                if(tMax.y < tMax.z) {
+                    nodePos.y += stepVect.y;
+                    t = tMax.y;
+                    tMax.y += tDeltaVoxel.y;
+                }
+                else {
+                    nodePos.z += stepVect.z;
+                    t = tMax.z;
+                    tMax.z += tDeltaVoxel.z;
+                }
+            }
+            pos = position + t*ray;
+            currentP++;
+            adressNextNode = stack[p-currentP];
         }
         else {
             node = data[adressNextNode];
-            offsetVect = ivec3(2*.pos/(1<<currentP*voxelSize));
+            localPos = pos/voxelSize-nodePos;
+            offsetVect = ivec3(2*localPos/(1<<currentP));
+            nodePos += offsetVect*currentP;
             offset = offsetVect.x + offsetVect.y*2 + offsetVect.z*4;
             childAdress = getChildAdress(node);
             cache = getCache(node);
 
             stack[p-currentP] = node;
-            isNextNodeLeaf = cache[offset];
+            isNextNodeLeaf = (cache & uint(1<<offset)) == 1;
             adressNextNode = childAdress + offset;
             currentP--;
         }
 
     }
 
-    finalColor = vec4(1.);
+    finalColor = vec4(vec3(0.), 1.);
     return;
 }
