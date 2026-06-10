@@ -112,16 +112,15 @@ int main ()
 	
 	DisableCursor();
 
-	int frameNumber = 0;
-	int blankFrame = 25;
-	double angle = 0.;
-
-	double pitch = 0.0;
-	double yaw = -PI/2.;
-	double roll = 0.0;
-
 	SetTargetFPS(2000);
+	for(int i = 0; i<100; i++) {
+		int frameNumber = 0;
+		int blankFrame = 25;
+		double angle = 0.;
 
+		double pitch = 0.0;
+		double yaw = -PI/2.;
+		double roll = 0.0;
 	while (!WindowShouldClose())
 	{
 		if (updateEnabled) {
@@ -181,6 +180,7 @@ int main ()
 			EndShaderMode();
 			DrawFPS(0, 0);
 		EndDrawing();
+	}
 	}
 
 	UnloadShader(shader);

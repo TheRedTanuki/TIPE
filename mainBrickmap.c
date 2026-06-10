@@ -130,6 +130,7 @@ int main ()
 
 	int bricksArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
 	int dataArraySsbo = rlLoadShaderBuffer(dataArraySize*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
+	printf("%d", dataArraySize);
 
 	rlBindShaderBuffer(bricksArraySsbo, 0);
 	rlBindShaderBuffer(dataArraySsbo, 1);
@@ -160,7 +161,14 @@ int main ()
 	double roll = 0.0;
 
 	SetTargetFPS(2000);
+	for(int i = 0; i<100; i++) {
+		int frameNumber = 0;
+		int blankFrame = 25;
+		double angle = 0.;
 
+		double pitch = 0.0;
+		double yaw = -PI/2.;
+		double roll = 0.0;
 	while (!WindowShouldClose())
 	{
 		if (updateEnabled) {
@@ -221,6 +229,7 @@ int main ()
 			EndShaderMode();
 			DrawFPS(0, 0);
 		EndDrawing();
+	}
 	}
 
 	UnloadShader(shader);
