@@ -66,3 +66,13 @@ plt.xlabel("Rotation - rad")
 plt.ylabel("Temps moyen de l'echantillon - ms")
 #plt.fill_between(X, YbrickmapTop, YbrickmapBot, alpha=.5)
 plt.show()
+
+fig, ax = plt.subplots()
+
+tags = ['Dense Grid', 'Brickmap', 'Octree']
+c = [32**4, 24*512*32, 721*32]
+bar_colors = ['tab:red', 'tab:blue', 'tab:orange']
+
+ax.bar(tags, c, color=bar_colors)
+ax.set_ylabel('Taille - bits')
+plt.show()
