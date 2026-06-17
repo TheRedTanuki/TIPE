@@ -4,147 +4,152 @@ in vec2 fragTexCoord;
 out vec4 finalColor;
 
 uniform float ratio;
-uniform vec3 cameraForward = vec3 (1., 0., 0.);
-uniform vec3 cameraRight = vec3 (0., 1., 0.);
-uniform vec3 cameraUp = vec3 (0., 0., 1.);
-uniform vec3 position = vec3 (0., 0., 0.);
-uniform float fov = 1.;
-uniform float voxelSize = 1.;
+uniform vec3 cameraForward;
+uniform vec3 cameraRight;
+uniform vec3 cameraUp;
+uniform vec3 position;
+uniform float fov;
+
+uniform float voxelSize;
 uniform int p;
-uniform vec3 startPoint = vec3 (0., 0., 0.);
-uniform int newtonNMax = 5; // precision of t determination (increase for more precision)
-uniform int mode;
-uniform vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
+uniform vec3 startPoint;
 
-#define n pow(8., float(p))
-
-layout(std430, binding=0) buffer octreeBuffer {
+layout(std430, binding = 0) buffer octreeBuffer
+{
     uint data[];
 };
 
-uint getCache(uint node) {
-    return node>>24;
+uint getCache(uint branch)
+{
+    return branch >> 24;
 }
 
-uint getChildAdress(uint node) {
-    return node & uint(1<<24-1);
+uint getChildAddress(uint branch)
+{
+    return branch & ((1u<<24)-1u);
 }
 
-uint getData(uint leaf) {
-    return leaf & uint(255);
+bool childIsLeaf(uint cache, uint child)
+{
+    return ((cache >> child) & 1u) != 0u;
 }
 
-bool inBoundaries(vec3 pos) {
-    return all(greaterThanEqual(pos, vec3 (0.))) && all(lessThan(pos, vec3 (n*voxelSize)));
+int leafValue(uint leaf)
+{
+    return int(leaf & 255u) - 127;
 }
 
-int getValue(uint adress) {
-    return int(data[adress] & uint(255)) - 127;
+void pushStack(out uint stack[11], out int iStack, uint nodeAdress) {
+    stack[iStack] = nodeAdress;
+    iStack++;
 }
 
-void main(){
-    vec3 endPoint = startPoint+vec3(voxelSize*n); // remember to add (-1) for the sdf version
-    vec2 uv = fragTexCoord;
-    uv *= 2.0;
-    uv -= 1.;
+uint popStack(out uint stack[11], out int iStack) {
+    iStack--;
+    return stack[iStack];
+}
+
+void main()
+{
+    vec2 uv = fragTexCoord * 2.0 - 1.0;
     uv.x *= ratio;
-    uint stack[10]; // 10+1 is the max depth of the octree
 
-    vec3 ray = normalize(cameraForward + uv.x*cameraRight*fov + uv.y*cameraUp*fov);
-    vec3 pos = position;
-    vec3 invRay = 1./ray;
+    uint stack[11];
+    int iStack = 0;
 
-    vec3 t0 = (startPoint-pos) * invRay;
-    vec3 t1 = (endPoint - pos) * invRay;
+    vec3 ray = normalize(
+        cameraForward +
+        cameraRight * uv.x * fov +
+        cameraUp * uv.y * fov
+    );
 
-    vec3 tmin3 = min(t0, t1);
-    vec3 tmax3 = max(t0, t1);
+    int resolution = 1 << (p + 1);
+    float worldSize = float(resolution) * voxelSize;
 
+    vec3 worldMin = startPoint;
+    vec3 worldMax = startPoint + vec3(worldSize);
 
-    float tmin = max(max(tmin3.x, tmin3.y), tmin3.z);
-    float tmax = min(min(tmax3.x, tmax3.y), tmax3.z);
+    vec3 invRay = 1.0 / ray;
 
-    if(tmax < 0. || tmin > tmax){
-        finalColor = vec4(0., 0., 0., 1.);
+    vec3 t0 = (worldMin - position) * invRay;
+    vec3 t1 = (worldMax - position) * invRay;
+
+    vec3 tMin3 = min(t0, t1);
+    vec3 tMax3 = max(t0, t1);
+
+    float tNear = max(max(tMin3.x, tMin3.y), tMin3.z);
+    float tFar  = min(min(tMax3.x, tMax3.y), tMax3.z);
+
+    if(tFar < 0.0 || tNear > tFar)
+    {
+        finalColor = vec4(0.0,0.0,0.0,1.0);
         return;
     }
 
-    float t = max(tmin, 0.0);
-    pos += ray*t;
+    float t = max(tNear, 0.0);
+    vec3 pos = position + ray * t;
+
+    vec3 local = (pos - startPoint) / voxelSize;
+
+    ivec3 voxel;
+    ivec3 voxelNode;
+    int level = p;
+    
+    bool isLeaf = false;
+    uint address = 0;
 
     vec3 stepVect = sign(ray);
-    uint adressNextNode = 0;
 
-    uint node = data[adressNextNode];
-    vec3 nodePos = startPoint;
-    uint currentP = p;
-    vec3 localPos = pos/voxelSize-nodePos;
-    ivec3 offsetVect = ivec3(2*localPos/(1<<currentP));
-    nodePos += offsetVect*currentP;
-    uint offset = offsetVect.x + offsetVect.y*2 + offsetVect.z*4;
-    uint childAdress = getChildAdress(node);
-    uint cache = getCache(node);
-
-    stack[p-currentP] = node;
-    bool isNextNodeLeaf = (cache & uint(1<<offset)) == 1;
-    adressNextNode = childAdress + offset;
-    currentP--;
-
-    while(currentP < p) {
-        if(isNextNodeLeaf || currentP==0) { // security - can be removed later
-            if(getValue(node)!=0 && getValue(node)!=254) {
+    while(t < tFar) {
+        uint node = data[address];
+        voxel = ivec3(floor(local+ray*1e-4));
+        voxelNode = voxel/ivec3(1<<level);
+        if(isLeaf) {
+            int value = leafValue(node);
+            if (value!=-127 && value!=127) {
                 finalColor = vec4(1.);
                 return;
             }
-            vec3 nextVoxelBoundary = (nodePos + max(stepVect, vec3(0.)))*voxelSize + startPoint;
-            vec3 tMax = (nextVoxelBoundary-pos)/ray;
-            vec3 tDeltaVoxel = abs(voxelSize/ray);
-            
-            if(tMax.x < tMax.y) {
-                if(tMax.x < tMax.z) {
-                    nodePos.x += stepVect.x;
-                    t = tMax.x;
-                    tMax.x += tDeltaVoxel.x;
-                }
-                else {
-                    nodePos.z += stepVect.z;
-                    t = tMax.z;
-                    tMax.z += tDeltaVoxel.z;
-                }
-            }
-            else {
-                if(tMax.y < tMax.z) {
-                    nodePos.y += stepVect.y;
-                    t = tMax.y;
-                    tMax.y += tDeltaVoxel.y;
-                }
-                else {
-                    nodePos.z += stepVect.z;
-                    t = tMax.z;
-                    tMax.z += tDeltaVoxel.z;
-                }
-            }
-            pos = position + t*ray;
-            currentP++;
-            adressNextNode = stack[p-currentP];
+            vec3 nextVoxelBoundary = vec3(voxelNode) + max(stepVect*(1<<level), vec3(0.));
+            vec3 tMax = nextVoxelBoundary-local;
+            vec3 tDelta = abs(invRay);
+            float tMin = min(tMax.x, min(tMax.y, tMax.z));
+            local += ray*tMin;
+
+            level++;
+            address = popStack(stack, iStack);
         }
         else {
-            node = data[adressNextNode];
-            localPos = pos/voxelSize-nodePos;
-            offsetVect = ivec3(2*localPos/(1<<currentP));
-            nodePos += offsetVect*currentP;
-            offset = offsetVect.x + offsetVect.y*2 + offsetVect.z*4;
-            childAdress = getChildAdress(node);
-            cache = getCache(node);
+            if(all(greaterThanEqual(local, vec3(voxelNode))) && all(lessThanEqual(local, vec3(voxelNode)+vec3(1.*(1<<level))))) { // check if we are in the voxel
+                uint cache = getCache(node);
+                uint firstChild = getChildAddress(node);
 
-            stack[p-currentP] = node;
-            isNextNodeLeaf = (cache & uint(1<<offset)) == 1;
-            adressNextNode = childAdress + offset;
-            currentP--;
-        }
+                uint xBit = local.x - float(voxel.x) < 0.5*(1<<level) ? 0 : 1; // 0.5*(1<<level) = 1<<(level-1)
+                uint yBit = local.y - float(voxel.y) < 0.5*(1<<level) ? 0 : 1;
+                uint zBit = local.z - float(voxel.z) < 0.5*(1<<level) ? 0 : 1;
 
+                uint child =
+                    xBit +
+                    (yBit << 1) +
+                    (zBit << 2);
+
+                pushStack(stack, iStack, address);
+                address = firstChild + child;
+            }
+            else { // if not -> go to father
+                if(level>p) {
+                    finalColor = vec4(1., 0., 0., 1.);
+                    return;
+                }
+                else {
+                    level++;
+                    address = popStack(stack, iStack);
+                }
+
+            }
+        }      
+        
     }
 
-    finalColor = vec4(vec3(0.), 1.);
-    return;
+    finalColor = vec4(0.0,0.0,0.0,1.0);
 }

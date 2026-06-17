@@ -283,7 +283,7 @@ void main() {
         float tNext = min(tMax.x, min(tMax.y, tMax.z));
         vec4 color = intersectVoxel(currentVoxel, position + t*ray, ray, tNext-t);
         if (color!=vec4(0.)) {
-            finalColor = color;
+            finalColor = vec4(vec3(1.)-color.xyz, 1.);
             return;
         }
         if(tMax.x < tMax.y) {
@@ -311,6 +311,6 @@ void main() {
             }
         }
     }
-    finalColor = vec4(0., 0., 0., 1.);
+    finalColor = vec4(1., 1., 1., 1.);
     return;
 }
