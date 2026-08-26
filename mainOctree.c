@@ -113,7 +113,7 @@ Node* createOctree(int p, int n, int x, int y, int z) {
 		return node;
 	}
 	else {
-		int offset = 1<<p;
+		int offset = 1<<(p-1);
 		Node* node000 = createOctree(p-1, n, x, y, z);
 		Node* node100 = createOctree(p-1, n, x+offset, y, z);
 		Node* node010 = createOctree(p-1, n, x, y+offset, z);
@@ -260,7 +260,9 @@ int fillBuffer(uint32_t* octreeBuffer, Node* octree) {
 			nextAvailable++;
 		}
 		else {
-			uint32_t nodeInt = (uint32_t)(node->cache)<<24 | nextAvailable+q->size+1 & ((1<<24) - 1);
+			uint32_t childAddress = (uint32_t)(nextAvailable + q->size + 1);
+			uint32_t nodeInt = ((uint32_t)node->cache << 24) | (childAddress & 0x00FFFFFFu);
+
 			for(int i = 0; i<8; i++) {
 				appendNodeQueue(q, node->children[i]);
 			}
@@ -306,8 +308,9 @@ int main ()
 
     int p = 5;
 	int n = 1<<p;
-	int size = quickExp(8, p);
-    int32_t* octreeBuffer = malloc(size*sizeof(int32_t));
+
+	int size = (quickExp(8, p+1) - 1) / 7;
+    uint32_t* octreeBuffer = malloc(size*sizeof(uint32_t));
 	Node* octree = createOctree(p, n, 0, 0, 0);
 	int bufferSize = updateBuffer(octreeBuffer, octree);
 	printf("%d\n", count(octree));
