@@ -267,7 +267,7 @@ void main() {
     }
 
     float t = max(tmin, 0.0);
-    pos += ray*t;
+    pos = position + ray*t;
 
     vec3 stepVect = sign(ray);
     vec3 currentVoxel = floor((pos-startPoint)/voxelSize + ray*1e-4);
