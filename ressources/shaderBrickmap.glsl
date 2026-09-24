@@ -71,9 +71,11 @@ float poly2(vec3 c, float t) {
     return (c.z*t + c.y)*t +c.x;
 }
 
-bool signDiff(float x1, float x2) {
-    return x1*x2 <= 0.;
+bool signDiff(float a, float b) {
+    return (a <= 0.0 && b >= 0.0) ||
+           (a >= 0.0 && b <= 0.0);
 }
+
 
 float lerp(float x, float a, float b) {
     return a + x*(b-a);

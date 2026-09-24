@@ -281,6 +281,7 @@ int updateBuffer(uint32_t* octreeBuffer, Node* octree) {
 
 int main ()
 {
+	FILE* data = fopen("data/octree.txt", "w");
 	SetConfigFlags(FLAG_WINDOW_HIGHDPI);
 	InitWindow(1280, 800, "Test");
 	
@@ -306,6 +307,9 @@ int main ()
 	Vector3 startPoint = (Vector3){0., 0., 0.};
 	float voxelSize = 1.;
 
+	int sampleFrameNumber = 1000;
+	int circleRadius = 16.;
+
     int p = 5;
 	int n = 1<<p;
 
@@ -313,12 +317,14 @@ int main ()
     uint32_t* octreeBuffer = malloc(size*sizeof(uint32_t));
 	Node* octree = createOctree(p, n, 0, 0, 0);
 	int bufferSize = updateBuffer(octreeBuffer, octree);
-	printf("%d\n", count(octree));
+	int numberNodes = count(octree);
+	printf("Node number : %d\n", numberNodes);
+	printf("Estimated ssbo size : %dko\n", 32*numberNodes/8000);
 	int ssboOctree = rlLoadShaderBuffer(bufferSize* sizeof(uint32_t), octreeBuffer, RL_DYNAMIC_READ);
 	rlBindShaderBuffer(ssboOctree, 0);
 
 	bool updateEnabled = false;
-	int mode = 0;
+	int mode = 3;
 	int modeNumber = 4;
 
 	SetShaderValue(shader, fovLoc, &fov, SHADER_UNIFORM_FLOAT);
@@ -333,19 +339,35 @@ int main ()
 	
 	DisableCursor();
 
-	double pitch = 0.0;
-	double yaw = 0.0;
-	double roll = 0.0;
 	SetTargetFPS(1000);
+	for(int i = 0; i<100; i++) {
+		int frameNumber = 0;
+		int blankFrame = 25;
+		double angle = 0.;
 
+		double pitch = 0.0;
+		double yaw = -PI/2.;
+		double roll = 0.0;
 	while (!WindowShouldClose())
 	{
 		if (updateEnabled) {
 		}
 		Vector2 delta = GetMouseDelta();
-		pitch -= (double)delta.y*GetFrameTime()*0.5;
-		yaw -= (double)delta.x*GetFrameTime()*0.5;
+		//pitch -= (double)delta.y*GetFrameTime()*0.5;
+		//yaw -= (double)delta.x*GetFrameTime()*0.5;
 		//roll += 0.02*((IsKeyDown(KEY_Q) ? 1 : 0) + (IsKeyDown(KEY_E) ? -1 : 0));
+
+		if(frameNumber-blankFrame == sampleFrameNumber-1) break;
+
+		pos = (Vector3){16. + circleRadius*sin(angle), 16. + circleRadius*cos(angle), 16.};
+		yaw = angle+PI/2.;
+		frameNumber++;
+		angle = 2.*PI*(frameNumber-blankFrame)/sampleFrameNumber;
+		if(frameNumber >= blankFrame) { // prevent the overload of the first frames
+			char str[20];
+			sprintf(str, "%lf\n", GetFrameTime());
+			fwrite(str, 9, 1, data);
+		}
 
 		Quaternion rQuat = QuaternionMultiply(rotationQuat((Quaternion){0., 0., 0., 1.}, yaw), QuaternionMultiply(rotationQuat((Quaternion){0., 0., 1., 0.}, pitch), rotationQuat((Quaternion){0., 1., 0., 0.}, roll)));
 		forward = rotateQuat((Quaternion){0., 1., 0., 0.}, rQuat);
@@ -383,6 +405,7 @@ int main ()
 			EndShaderMode();
 			DrawFPS(0, 0);
 		EndDrawing();
+	}
 	}
 
 	UnloadShader(shader);
