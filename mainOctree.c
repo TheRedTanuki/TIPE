@@ -325,7 +325,7 @@ int main ()
 
 	bool updateEnabled = false;
 	int mode = 3;
-	int modeNumber = 4;
+	int modeNumber = 5;
 
 	SetShaderValue(shader, fovLoc, &fov, SHADER_UNIFORM_FLOAT);
 	SetShaderValue(shader, startPointLoc, &startPoint, SHADER_UNIFORM_VEC3);
@@ -340,34 +340,18 @@ int main ()
 	DisableCursor();
 
 	SetTargetFPS(1000);
-	for(int i = 0; i<100; i++) {
-		int frameNumber = 0;
-		int blankFrame = 25;
-		double angle = 0.;
 
-		double pitch = 0.0;
-		double yaw = -PI/2.;
-		double roll = 0.0;
+	double pitch = 0.0;
+	double yaw = -PI/2.;
+	double roll = 0.0;
 	while (!WindowShouldClose())
 	{
 		if (updateEnabled) {
 		}
 		Vector2 delta = GetMouseDelta();
-		//pitch -= (double)delta.y*GetFrameTime()*0.5;
-		//yaw -= (double)delta.x*GetFrameTime()*0.5;
+		pitch -= (double)delta.y*GetFrameTime()*0.5;
+		yaw -= (double)delta.x*GetFrameTime()*0.5;
 		//roll += 0.02*((IsKeyDown(KEY_Q) ? 1 : 0) + (IsKeyDown(KEY_E) ? -1 : 0));
-
-		if(frameNumber-blankFrame == sampleFrameNumber-1) break;
-
-		pos = (Vector3){16. + circleRadius*sin(angle), 16. + circleRadius*cos(angle), 16.};
-		yaw = angle+PI/2.;
-		frameNumber++;
-		angle = 2.*PI*(frameNumber-blankFrame)/sampleFrameNumber;
-		if(frameNumber >= blankFrame) { // prevent the overload of the first frames
-			char str[20];
-			sprintf(str, "%lf\n", GetFrameTime());
-			fwrite(str, 9, 1, data);
-		}
 
 		Quaternion rQuat = QuaternionMultiply(rotationQuat((Quaternion){0., 0., 0., 1.}, yaw), QuaternionMultiply(rotationQuat((Quaternion){0., 0., 1., 0.}, pitch), rotationQuat((Quaternion){0., 1., 0., 0.}, roll)));
 		forward = rotateQuat((Quaternion){0., 1., 0., 0.}, rQuat);
@@ -405,7 +389,6 @@ int main ()
 			EndShaderMode();
 			DrawFPS(0, 0);
 		EndDrawing();
-	}
 	}
 
 	UnloadShader(shader);

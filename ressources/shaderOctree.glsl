@@ -89,25 +89,25 @@ vec4 computeNormal(
     return vec4(normalize(vec3(dx, dy, dz)), 1.);
 }
 
-int searchValue(vec3 local, int defaultValue, int level, ivec3 nodeMin, in uint addressStack[11], in ivec3 nodeMinStack[11], int stackSize, uint address) {
+int searchValue(ivec3 voxel, int defaultValue, int level, ivec3 nodeMin, in uint addressStack[11], in ivec3 nodeMinStack[11], int stackSize, uint address) {
     int nodeSize = 1 << level;
 
     // Stay in the same leaf
-    if (all(greaterThanEqual(local, vec3(nodeMin))) &&
-        all(lessThan(local, vec3(nodeMin + nodeSize)))) {
+    if (all(greaterThanEqual(voxel, nodeMin)) &&
+        all(lessThan(voxel, nodeMin + nodeSize))) {
         return defaultValue;
     }
 
     // Goes out of the current leaf : ascend till finding the parent
     for (int i = 0; i < MAX_DEPTH; i++) {
-        if (stackSize <= 0) return defaultValue; // Should not happen
+        if (stackSize <= 0) return 128; // Should not happen
         stackSize--;
         address = addressStack[stackSize];
         nodeMin  = nodeMinStack[stackSize];
         level++;
         nodeSize = 1 << level;
-        if (all(greaterThanEqual(local, vec3(nodeMin))) &&
-            all(lessThan(local, vec3(nodeMin + nodeSize)))) break;
+        if (all(greaterThanEqual(voxel, nodeMin)) &&
+            all(lessThan(voxel, nodeMin + nodeSize))) break;
     }
 
     // Descend to child
@@ -115,7 +115,6 @@ int searchValue(vec3 local, int defaultValue, int level, ivec3 nodeMin, in uint 
         uint node = data[address];
         int halfSize = nodeSize >> 1;
 
-        ivec3 voxel = ivec3(floor(local));
         ivec3 relative = voxel - nodeMin;
 
         uint xBit = relative.x >= halfSize ? 1u : 0u;
@@ -137,13 +136,13 @@ int searchValue(vec3 local, int defaultValue, int level, ivec3 nodeMin, in uint 
         level--;
         nodeSize = 1 << level;
     }
-    return defaultValue;
+    return 128;
 }
 
 vec4 intersectVoxel(vec3 local, vec3 ray, float tSegment, int defaultValue, int level, ivec3 nodeMin, vec3 boundary, float t, in uint addressStack[MAX_DEPTH], in ivec3 nodeMinStack[MAX_DEPTH], int stackSize, uint address) {
     if (level != 0) return vec4(0.);
     
-    ivec3 voxelInt = ivec3(local);
+    ivec3 voxelInt = ivec3(floor(local));
     int nodeSize = 1 << level;
 
     vec3 localOrigin = local - voxelInt;
@@ -152,13 +151,22 @@ vec4 intersectVoxel(vec3 local, vec3 ray, float tSegment, int defaultValue, int 
     float scale = sqrt(2.0)/127.0;
 
     int v000 = defaultValue;
-    int v100 = searchValue(local + vec3(1., 0., 0.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
-    int v010 = searchValue(local + vec3(0., 1., 0.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
-    int v110 = searchValue(local + vec3(1., 1., 0.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
-    int v001 = searchValue(local + vec3(0., 0., 1.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
-    int v101 = searchValue(local + vec3(1., 0., 1.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
-    int v011 = searchValue(local + vec3(0., 1., 1.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
-    int v111 = searchValue(local + vec3(1., 1., 1.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
+    int v100 = searchValue(voxelInt + ivec3(1., 0., 0.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
+    int v010 = searchValue(voxelInt + ivec3(0., 1., 0.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
+    int v110 = searchValue(voxelInt + ivec3(1., 1., 0.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
+    int v001 = searchValue(voxelInt + ivec3(0., 0., 1.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
+    int v101 = searchValue(voxelInt + ivec3(1., 0., 1.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
+    int v011 = searchValue(voxelInt + ivec3(0., 1., 1.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
+    int v111 = searchValue(voxelInt + ivec3(1., 1., 1.), v000, level, nodeMin, addressStack, nodeMinStack, stackSize, address);
+    if(v000 == 128 ||
+    v100 == 128 ||
+    v010 == 128 ||
+    v110 == 128 ||
+    v001 == 128 ||
+    v101 == 128 ||
+    v011 == 128 ||
+    v111 == 128) return vec4(0., 0., 1., 1.); // debug
+
 
     float s000 = float(v000) * scale;
     float s100 = float(v100) * scale;
@@ -304,6 +312,10 @@ vec4 intersectVoxel(vec3 local, vec3 ray, float tSegment, int defaultValue, int 
         vec4 color = computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, localOrigin, localDir, ray);
         return vec4(vec3((dot(color.xyz, lightDir)+1.)/2.), 1.0);
     }
+    if (mode == 4) return vec4(
+        fract(local),
+        1.0
+    );
     return vec4(vec3(tIntersect), 1.);
 }
 
@@ -355,7 +367,7 @@ void main() {
     uint addressStack[MAX_DEPTH];
     ivec3 nodeMinStack[MAX_DEPTH];
     int stackSize = 0;
-    finalColor = vec4(0., 0., 0., 1.);
+    finalColor = vec4(1., 0., 0., 1.);
     for (int iteration = 0; iteration < 512; iteration++) {
         // recompute local to avoid additionnal floating point errors
         local = (position + ray * t - startPoint)/ voxelSize;
@@ -370,25 +382,18 @@ void main() {
             int nodeSize = 1 << level;
             vec3 boundary;
 
-            if (ray.x > 0.)
-                boundary.x = float(nodeMin.x + nodeSize);
-            else
-                boundary.x = float(nodeMin.x);
+            if (ray.x > 0.) boundary.x = float(nodeMin.x + nodeSize);
+            else            boundary.x = float(nodeMin.x);
 
-            if (ray.y > 0.)
-                boundary.y = float(nodeMin.y + nodeSize);
-            else
-                boundary.y = float(nodeMin.y);
+            if (ray.y > 0.) boundary.y = float(nodeMin.y + nodeSize);
+            else            boundary.y = float(nodeMin.y);
 
-            if (ray.z > 0.)
-                boundary.z = float(nodeMin.z + nodeSize);
-            else
-                boundary.z = float(nodeMin.z);
+            if (ray.z > 0.) boundary.z = float(nodeMin.z + nodeSize);
+            else            boundary.z = float(nodeMin.z);
 
             int v000 = leafValue(node);
 
             const float INF = 1e30;
-
             vec3 tExit;
 
             if (abs(ray.x) > 1e-8)  tExit.x = t + (boundary.x - local.x)*voxelSize/ray.x;
@@ -407,15 +412,7 @@ void main() {
                 return;
             }
 
-            // debug
-            //if (v000 != -127 && v000 != 127) {
-            //    float v = float(v000 + 127) / 254.;
-            //    finalColor = vec4(vec3(v), 1.);
-            //    return;
-            //}
-
             if (nextT <= t) nextT = t + rayEpsilon;
-
             t = nextT;
 
             // reascend
@@ -438,9 +435,7 @@ void main() {
         // Internal Node
 
         int nodeSize = 1 << level;
-
         int halfSize = nodeSize >> 1;
-
         ivec3 nodeMax = nodeMin + ivec3(nodeSize);
 
 
@@ -504,4 +499,5 @@ void main() {
 
         isLeaf = childIsLeaf(cache, child);
     }
+    finalColor = vec4(0., 1., 0., 1.);
 }
