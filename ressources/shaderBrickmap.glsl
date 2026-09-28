@@ -19,6 +19,8 @@ uniform vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
 #define voxelSize brickSize / 8.0
 #define invVoxelSize 8./brickSize
 
+const float scale = sqrt(3.)/127.0;
+
 layout(std430, binding = 0) buffer bricksArray {
     uint bricks[];
 };
@@ -120,8 +122,6 @@ vec4 intersectVoxel(vec3 voxel, vec3 brick, vec3 rayOrigin, vec3 rayDir, float t
 
     vec3 localOrigin = (rayOrigin - voxelWorld) * invVoxelSize;
     vec3 localDir    = (rayDir * tSegment) * invVoxelSize;
-
-    float scale = sqrt(2.0)/127.0;
 
     float s000;
     float s100;

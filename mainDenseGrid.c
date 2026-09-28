@@ -50,7 +50,7 @@ void updateBuffer(uint32_t* voxelArray, int n, double time) {
 				double movingCenter = (n-1+sin(time*0.5))/2.;
 				double c = (n-1)/2.;
 				Vector3 pos = (Vector3){(double)i-movingCenter, (double)j-c, (double)k-c};
-				double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(2))*127;
+				double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(3))*127;
 				uint32_t val = (uint32_t)(intClamp((int)dist, -127, 127)+127);
 				voxelArray[index] = val;
 			}

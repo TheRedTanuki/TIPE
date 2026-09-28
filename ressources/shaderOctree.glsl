@@ -21,6 +21,7 @@ int max_depth = p+1;
 uniform vec3 startPoint;
 
 const int MAX_DEPTH = 11;
+const float scale = sqrt(3.)/127.;
 
 layout(std430, binding = 0) buffer octreeBuffer {
     uint data[];
@@ -150,8 +151,6 @@ vec4 intersectVoxel(vec3 local, vec3 ray, float tSegment, int defaultValue, int 
 
     vec3 localOrigin = local - voxelInt;
     vec3 localDir    = (ray * tSegment)/voxelSize;
-
-    float scale = sqrt(2.0)/127.0;
 
     int v000 = defaultValue;
     int v100 = searchValue(voxelInt + ivec3(1., 0., 0.), v000, level, nodeMin, addressStack, stackSize, address);

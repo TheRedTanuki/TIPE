@@ -57,7 +57,7 @@ int updateBufferBrickMap(uint32_t* bricksArray, uint32_t* dataArray, int nBrick,
 							double movingCenter = (nBrick*8-1+10.*sin(time*0.5))/2.;
 							double c = (nBrick*8-1)/2.;
 							Vector3 pos = (Vector3){(double)(x+8*i)-movingCenter, (double)(y+8*j)-c, (double)(z+8*k)-c};
-							double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(2))*127;
+							double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(3))*127;
 							uint32_t val = (uint32_t)(intClamp((int)dist, -127, 127)+127);
 							if(val != 0) {
 								isFull = false;

@@ -16,6 +16,8 @@ uniform int newtonNMax = 5; // precision of t determination (increase for more p
 uniform int mode;
 uniform vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
 
+const float scale = sqrt(3.)/127.;
+
 layout(std430, binding = 0) buffer dataArray {
     uint data[];
 };
@@ -82,8 +84,6 @@ vec4 intersectVoxel(vec3 voxel, vec3 rayOrigin, vec3 rayDir, float tSegment) {
 
     vec3 localOrigin = (rayOrigin - voxelWorld) / voxelSize;
     vec3 localDir    = (rayDir * tSegment) / voxelSize;
-
-    float scale = sqrt(2.0)/127.0;
 
     // Trilinear interpolation coefficients
     float s000 = float(getValue(voxelInt)) * scale;

@@ -81,7 +81,7 @@ int quickExp(int n, int p) {
 uint8_t computeNode(int n, int x, int y, int z) {
     double c = (n-1)/2.;
     Vector3 pos = (Vector3){(double)x-c, (double)y-c, (double)z-c};
-    double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(2))*127;
+    double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(3))*127;
     uint8_t val = (uint8_t)(intClamp((int)dist, -127, 127)+127);
 	return val;
 }
