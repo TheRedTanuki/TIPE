@@ -130,7 +130,7 @@ int main ()
 
 	int bricksArraySsbo = rlLoadShaderBuffer(nBrick*nBrick*nBrick*sizeof(uint32_t), bricksArray, RL_DYNAMIC_READ);
 	int dataArraySsbo = rlLoadShaderBuffer(dataArraySize*sizeof(uint32_t), dataArray, RL_DYNAMIC_READ);
-	printf("%d", dataArraySize);
+	printf("%d\n", dataArraySize);
 
 	rlBindShaderBuffer(bricksArraySsbo, 0);
 	rlBindShaderBuffer(dataArraySsbo, 1);
