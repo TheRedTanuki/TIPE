@@ -9,7 +9,9 @@
 #include <rlgl.h>
 #include <raymath.h>
 
-// gcc mainOctree.c -O3 -o mainOctree -lraylib -lm -lpthread -ldl -lrt -lX11 && ./mainOctree
+// gcc mainOctreeFaster.c -O3 -o mainOctreeFaster -lraylib -lm -lpthread -ldl -lrt -lX11 && ./mainOctreeFaster
+
+#define scale 127./sqrt(3)
 
 typedef struct Node{
     uint8_t cache;
@@ -51,29 +53,31 @@ int modulo(int n, int p) {
 	return res+p;
 }
 
-// Quaternion functions
-
-Quaternion inverse(Quaternion q) {
-	return (Quaternion){q.x, -q.y, -q.z, -q.w};
+double boxSDF(Vector3 p, Vector3 b, double r) {
+	Vector3 q = Vector3Add(Vector3Subtract((Vector3){fabs(p.x), fabs(p.y), fabs(p.z)}, b), (Vector3){r, r, r});
+	return Vector3Length(Vector3Max(q, (Vector3){0., 0., 0.})) + fmin(fmax(q.x, fmax(q.y, q.z)), 0.) - r;
 }
 
-Quaternion rotateQuat(Quaternion p, Quaternion q) {
-	return QuaternionMultiply(q, QuaternionMultiply(p, inverse(q)));
-}
-
-Quaternion rotationQuat(Quaternion axis, double angle) {
-	double c = cos(angle/2);
-	double s = sin(angle/2);
-	return (Quaternion){c, s*axis.y, s*axis.z, s*axis.w};
-}
-
-Vector3 quatToVect3(Quaternion q) {
-	return (Vector3){q.y, q.z, q.w};
-}
-
-double sdf(Vector3 pos, Vector2 t) {
+double torusSDF(Vector3 pos, Vector2 t) {
   Vector2 q = (Vector2){Vector2Length((Vector2){pos.x, pos.z})-t.x, pos.y};
   return Vector2Length(q)-t.y;
+}
+
+double roundedBarSDF(Vector3 pos, Vector3 start, Vector3 end, double r) {
+	Vector3 pa = Vector3Subtract(pos, start);
+	Vector3 ba = Vector3Subtract(end, start);
+	float h = Clamp( Vector3DotProduct(pa,ba)/Vector3DotProduct(ba,ba), 0., 1.);
+	return Vector3Length(Vector3Subtract(pa, Vector3Scale(ba, h))) - r;
+}
+
+double sphereSDF(Vector3 p, double r) {
+	return Vector3Length(p) - r;
+}
+
+double smoothUnionSDF(double a, double b, double k) {
+	k *= 4.;
+	double h = fmax(k - fabs(a - b), 0.);
+	return fmin(a, b) - h*h*0.25/k;
 }
 
 int quickExp(int n, int p) {
@@ -86,10 +90,22 @@ int quickExp(int n, int p) {
 }
 
 uint8_t computeValue(int n, int x, int y, int z) {
-    double c = (n-1)/2.;
-    Vector3 pos = (Vector3){(double)x-c, (double)y-c, (double)z-c};
-    double dist = sdf(pos, (Vector2){6., 3.})/(sqrt(3))*127;
-    uint8_t val = (uint8_t)(intClamp((int)dist, -127, 127)+127);
+	Vector3 coord = (Vector3){(double)x, (double)y, (double)z};
+	
+    double cTorus = n/2.;
+    Vector3 posTorus = Vector3Subtract(coord, (Vector3){cTorus, cTorus, cTorus});
+	double torus = torusSDF(posTorus, (Vector2){6., 3.5})/(sqrt(3))*127;
+
+	double cBox = 2.*n/3.;
+	Vector3 posBox = Vector3Subtract(coord, (Vector3){cBox, cBox, cBox});
+	posBox = Vector3RotateByAxisAngle(posBox, (Vector3){1., 0., 0.}, PI/6);
+	posBox = Vector3RotateByAxisAngle(posBox, (Vector3){0., 1., 0.}, PI/6);
+	posBox = Vector3RotateByAxisAngle(posBox, (Vector3){0., 0., 1.}, PI/6);
+    double box = boxSDF(posBox, (Vector3){6., 6., 6.}, 2.)/(sqrt(3))*127;
+
+	double dist = smoothUnionSDF(box, torus, 20.);
+	double rounded = dist >= 0 ? dist + 0.5 : dist - 0.5;
+    uint8_t val = (uint8_t)(intClamp((int)rounded, -127, 127)+127);
 	return val;
 }
 
@@ -367,34 +383,35 @@ int main ()
 	SetShaderValue(shader, voxelSizeLoc, &voxelSize, SHADER_UNIFORM_FLOAT);
 	SetShaderValue(shader, pLoc, &p, SHADER_UNIFORM_INT);
 
-	Vector3 pos = {-1., -1., -1.};
-	Quaternion forward = {0., 1., 0., 0.};
-	Quaternion right = {0., 0., 1., 0.};
-	Quaternion up = {0., 0., 0., 1.};
+	Vector3 pos = {-1., -1., n/2};
 	
 	DisableCursor();
 
 	SetTargetFPS(1000);
 
-	double pitch = 0.0;
-	double yaw = -PI/2.;
-	double roll = 0.0;
+	double pitch = 0.;
+	double yaw = 0.;
+	double roll = 0.;
 	while (!WindowShouldClose())
 	{
 		if (updateEnabled) {
 		}
 		Vector2 delta = GetMouseDelta();
 		pitch -= (double)delta.y*GetFrameTime()*0.5;
-		yaw -= (double)delta.x*GetFrameTime()*0.5;
-		//roll += 0.02*((IsKeyDown(KEY_Q) ? 1 : 0) + (IsKeyDown(KEY_E) ? -1 : 0));
-
-		Quaternion rQuat = QuaternionMultiply(rotationQuat((Quaternion){0., 0., 0., 1.}, yaw), QuaternionMultiply(rotationQuat((Quaternion){0., 0., 1., 0.}, pitch), rotationQuat((Quaternion){0., 1., 0., 0.}, roll)));
-		forward = rotateQuat((Quaternion){0., 1., 0., 0.}, rQuat);
-		right = rotateQuat((Quaternion){0., 0., 1., 0.}, rQuat);
-		up = rotateQuat((Quaternion){0., 0., 0., 1.}, rQuat);
-		Vector3 vectForward = quatToVect3(forward);
-		Vector3 vectRight = quatToVect3(right);
-		Vector3 vectUp = quatToVect3(up);
+		pitch = Clamp(pitch, -PI/3, PI/3);
+		yaw += (double)delta.x*GetFrameTime()*0.5;
+		Vector3 vectForward = (Vector3) {
+			cos(pitch)*cos(yaw),
+			cos(pitch)*sin(yaw),
+			sin(pitch)
+		};
+		Vector3 vectY = Vector3Normalize(Vector3CrossProduct(vectForward, (Vector3){0., 0., -1.}));
+		Vector3 vectA = Vector3CrossProduct(vectForward, vectY);
+		Vector3 vectRight = Vector3Add(
+			Vector3Scale(vectY, cos(roll)),
+			Vector3Scale(vectA, sin(roll))
+		);
+		Vector3 vectUp = Vector3CrossProduct(vectForward, vectRight);
 
 		if(IsKeyDown(KEY_W)) pos = Vector3Add(Vector3Scale(vectForward, GetFrameTime()*25), pos);
 		if(IsKeyDown(KEY_S)) pos = Vector3Add(Vector3Scale(vectForward, -GetFrameTime()*25), pos);

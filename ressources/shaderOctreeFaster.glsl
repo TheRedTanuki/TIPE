@@ -93,6 +93,113 @@ vec4 computeNormal(
     return vec4(normalize(vec3(dx, dy, dz)), 1.);
 }
 
+// Partly based on https://momentsingraphics.de/CubicRoots.html
+bool minCubicRootBetweenZeroAndOne(vec4 Coefficient, out float t)
+{
+    // Degerenated cases
+    if (abs(Coefficient.w) < 1e-6) {
+        if (abs(Coefficient.z) < 1e-6) {
+            if (abs(Coefficient.y) < 1e-6) {
+                if (abs(Coefficient.x) < 1e-6) {
+                    t = Coefficient.x;
+                    return true;
+                }
+                else return false;
+            }
+            float t0 = -Coefficient.x / Coefficient.y;
+            if (t0 >= 0. && t0 <= 1.) {
+                t = t0;
+                return true;
+            }
+            else return false;
+        }
+        else {
+            float d = Coefficient.y*Coefficient.y - 4.*Coefficient.z*Coefficient.x;
+            if (d < 0.) return false;
+
+            float t1 = (-Coefficient.y - sqrt(d))/(2.*Coefficient.z);
+            if (t1 >= 0. && t1 <= 1.) {
+                t = t1;
+                return true;
+            }
+            else {
+                float t2 = (-Coefficient.y + sqrt(d))/(2.*Coefficient.z);
+                if (t2 >= 0. && t2 <= 1.) {
+                    t = t2;
+                    return true;
+                }
+                else return false;
+            }
+        }
+    }
+    else {
+        // Normal cases
+        // Normalize the polynomial
+        Coefficient.xyz /= Coefficient.w;
+        // Divide middle coefficients by three
+        Coefficient.yz /= 3.0;
+
+        // Hessian coefficients and discriminant
+        vec3 Delta = vec3(
+            -Coefficient.z * Coefficient.z + Coefficient.y,
+            -Coefficient.y * Coefficient.z + Coefficient.x,
+            dot(vec2(Coefficient.z, -Coefficient.y), Coefficient.xy)
+        );
+        float Discriminant = dot(vec2(4.0 * Delta.x, -Delta.y), Delta.zy);
+
+        // Depressed cubic: x^3 + 3*Depressed.y*x + Depressed.x = 0
+        vec2 Depressed = vec2(
+            -2.0 * Coefficient.z * Delta.x + Delta.y,
+            Delta.x
+        );
+
+        bool allRealRoots = (Discriminant >= 0.0);
+
+        if (allRealRoots)
+        {
+            // Three real roots: trigonometric solution
+            float Theta = atan(sqrt(Discriminant), -Depressed.x) / 3.0;
+            vec2 CubicRoot = vec2(cos(Theta), sin(Theta));
+            vec3 Root = vec3(
+                CubicRoot.x,
+                dot(vec2(-0.5, -0.5 * sqrt(3.0)), CubicRoot),
+                dot(vec2(-0.5,  0.5 * sqrt(3.0)), CubicRoot)
+            );
+            vec3 t123 = (2.0 * sqrt(max(-Depressed.y, 0.0)) * Root - Coefficient.z).yzx; // First root is y, then z, then x, so we arrange them in order
+            if(t123.x >= 0. && t123.x <= 1.) {
+                t = t123.x;
+                return true;
+            }
+            else if(t123.y >= 0. && t123.y <= 1.) {
+                t = t123.y;
+                return true;
+            }
+            else if(t123.z >= 0. && t123.z <= 1.) {
+                t = t123.z;
+                return true;
+            }
+            else return false;
+        }
+        else
+        {
+            // One real root: Cardano. q^2/4 + p^3 == -Discriminant/4
+            float s = 0.5 * sqrt(-Discriminant);
+            // Pick the cube-root term with the larger magnitude to avoid cancellation
+            float w = -0.5 * Depressed.x - (Depressed.x >= 0.0 ? s : -s);
+            float u = sign(w) * pow(abs(w), 1.0 / 3.0);;
+            // u * v = -p, so the second term is -p / u
+            float v = (u != 0.0) ? -Depressed.y / u : 0.0;
+            float x = u + v - Coefficient.z;   // undo the depression
+            if(x >= 0. && x <= 1.) {
+                t = x;
+                return true;
+            }
+            else return false;
+        }
+    }
+    return false;
+}
+
 vec4 intersectVoxel(uint64_t node, vec3 local, vec3 ray, float tSegment, int defaultValue, int level, ivec3 nodeMin, vec3 boundary, float t, in uint addressStack[MAX_DEPTH], int stackSize, uint address) {
     if (level != 0) return vec4(0.);
     
@@ -156,99 +263,9 @@ vec4 intersectVoxel(uint64_t node, vec3 local, vec3 ray, float tSegment, int def
     float f0 = c0;
     float f1 = c0 + c1 + c2 + c3;
 
-    // critical cases
-    // please note that t is exact in these cases
     float tIntersect;
-    if (abs(c3) < 1e-6) {
-        if (abs(c2) < 1e-6) {
-            if (abs(c1) < 1e-6) {
-                if (abs(c0) < 1e-6) tIntersect = c0;
-                else return vec4(0.);
-            }
-            float t = -c0 / c1;
-            if (t >= 0. && t <= 1.) tIntersect = t;
-            else return vec4(0.);
-        }
-        else {
-            float d = c1*c1 - 4.*c2*c0;
-            if (d < 0.) return vec4(0.);
-            float t1 = (-c1 - sqrt(d))/(2.*c2);
-            if (t1>=0. && t1<=1.) tIntersect = t1;
-            else {
-                float t2 = (-c1 + sqrt(d))/(2.*c2);
-                if (t2>=0. && t2<=1.) tIntersect = t2;
-                else return vec4(0.);
-            }
-        }
-    }
-    // normal cases
-    else {
-        // Find a bracket [ta, tb] that crosses 0
-        bool hasRoot = false;
-        float ta,tb;
-        float tArray[4];
-        int count = 0;
+    if(!minCubicRootBetweenZeroAndOne(c, tIntersect)) return vec4(0.);
 
-        tArray[count++] = 0.;
-
-        float delta = 4.*c2*c2 - 12.*c3*c1;
-        if (delta >= 0.) {
-            float s = sqrt(delta);
-            float t1 = (-2.*c2-s)/(6.*c3);
-            float t2 = (-2.*c2+s)/(6.*c3);
-            float t1Ordered = min(t1, t2);
-            float t2Ordered = max(t1, t2);
-            if (t1Ordered>0. && t1Ordered<1.) tArray[count++] = t1Ordered;
-            if (t2Ordered>0. && t2Ordered<1.) tArray[count++] = t2Ordered;
-        }
-        tArray[count++] = 1.;
-
-        for(int i = 0; i < count-1; i++) {
-            float a = tArray[i];
-            float b = tArray[i+1];
-
-            float fa = poly3(c, a);
-            float fb = poly3(c, b);
-
-            if (signDiff(fa, fb)) {
-                ta = a;
-                tb = b;
-                hasRoot = true;
-                break;
-            }
-        }
-        // if none -> no solutions
-        if (!hasRoot) return vec4(0.);
-
-        // if one -> determine solution with Newton's method
-        float t = 0.5 * (ta + tb); // starting point
-        vec3 d = vec3(3.0*c3, 2.0*c2, c1);
-
-        for (int i = 0; i < newtonNMax; i++) {
-            float f = poly3(c, t);
-            float df = poly2(d, t);
-
-            float tNew;
-            if (abs(df) > 1e-6) {
-                tNew = t - f/df;
-                if (tNew < ta || tNew > tb) {
-                    tNew = 0.5 * (ta + tb);
-                }
-            } else {
-                tNew = 0.5 * (ta + tb);
-            }
-
-            float fNew = poly3(c, tNew);
-
-            if (fNew > 0.0)
-                tb = tNew;
-            else
-                ta = tNew;
-
-            t = tNew;
-        }
-        tIntersect = t;
-    }
     if (mode == 1) return computeNormal(s000, s100, s010, s110, s001, s101, s011, s111, tIntersect, localOrigin, localDir, ray);
     if (mode == 2) return vec4(local/float(1 << p), 1.);
     if (mode == 3) {
@@ -270,7 +287,7 @@ void main() {
 
     int n = 1 << p;
 
-    float worldSize = float(n-1) * voxelSize;
+    float worldSize = float(n) * voxelSize;
     vec3 endPoint = startPoint + vec3(worldSize);
 
     vec3 invRay = 1.0 / ray;
@@ -314,7 +331,7 @@ void main() {
         // recompute local to avoid additionnal floating point errors
         local = (position + ray * t - startPoint)/ voxelSize;
 
-        if (any(lessThan(local, vec3(0.0))) || any(greaterThanEqual(local, vec3(float(n-1))))) {
+        if (any(lessThan(local, vec3(0.0))) || any(greaterThanEqual(local, vec3(float(n))))) {
             finalColor = vec4(vec3(0.), 1.);
             return;
         }
